@@ -1,0 +1,15 @@
+version: '2.4'
+
+services:
+  docker-event-monitor:
+    container_name: docker-event-monitor
+    image: dem:local
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    environment:
+      PUSHOVER_USER: 'USER'
+      PUSHOVER_TOKEN: 'TOKEN'
+      FILTERS: 'filters={"event": ["start","stop"],"type": ["container"]}'
+

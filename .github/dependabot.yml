@@ -1,0 +1,18 @@
+version: 2
+updates:
+- package-ecosystem: github-actions
+  directory: "/"
+  schedule:
+    interval: weekly
+    day: sunday
+    time: "10:00"
+  open-pull-requests-limit: 10
+  target-branch: development
+- package-ecosystem: gomod
+  directory: "/"
+  schedule:
+    interval: weekly
+    day: sunday
+    time: "10:00"
+  open-pull-requests-limit: 10
+  target-branch: development
