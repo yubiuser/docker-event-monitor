@@ -1,6 +1,8 @@
 From golang:1.21-alpine3.18
 RUN apk add --no-cache \
-                git
+                git \
+                nano\
+                openssh
 
 ARG USERNAME=vscode
 ARG USER_UID=1000

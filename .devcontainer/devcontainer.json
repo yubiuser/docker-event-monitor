@@ -8,10 +8,16 @@
 		"vscode": {
 			"settings": {},
 			"extensions": [
-				"ms-vscode.go"
+				"ms-vscode.go",
+				"eamodio.gitlens",
+				"EditorConfig.EditorConfig",
+				"golang.Go"
 			]
 		}
 	},
+  "containerEnv": {
+    "GIT_EDITOR": "nano"
+  },
   "mounts": [
     "type=bind,source=/home/${localEnv:USER}/.ssh,target=/root/.ssh,readonly"
   ]

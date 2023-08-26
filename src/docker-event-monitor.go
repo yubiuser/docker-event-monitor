@@ -3,39 +3,93 @@ package main
 import (
 	"context"
 	"fmt"
-  "os"
-  "time"
+	"os"
+	"strings"
+	"time"
 
+	"github.com/alexflint/go-arg"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-  "github.com/docker/docker/api/types/filters"
-  "github.com/docker/docker/api/types/events"
-
 	"github.com/gregdel/pushover"
-  log "github.com/sirupsen/logrus"
-  "github.com/jnovack/flag"
+
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
-// todo
-// Argument Parsing - filters
-// memory leak?
-// generalize to all event/typs
+type args struct {
+	Pushover         bool                `arg:"env:PUSHOVER" default:"false" help:"Enable/Disable Pushover Notification (True/False)"`
+	PushoverAPIToken string              `arg:"env:PUSHOVER_APITOKEN" help:"Pushover's API Token/Key"`
+	PushoverUserKey  string              `arg:"env:PUSHOVER_USER" help:"Pushover's User Key"`
+	PushoverDelay    time.Duration       `arg:"env:PUSHOVER_DELAY" default:"500ms" help:"Delay before next Pushover message is send"`
+	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
+	Filter           map[string][]string `arg:"-"`
+	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
+}
 
-// Global variables
-var PUSHOVER_APITOKEN, PUSHOVER_USER string
-var PUSHOVER_DELAY int64
+func main() {
+	args := parseArgs()
 
-func sendPushover(message,title string) bool {
+	log.Infof("Starting docker event monitor")
 
+	if args.Pushover {
+		log.Infof("Using Pushover API Token %s", args.PushoverAPIToken)
+		log.Infof("Using Pushover User Key %s", args.PushoverUserKey)
+		log.Infof("Using Pushover delay of %v", args.PushoverDelay)
+	} else {
+		log.Info("Pushover notification disabled")
+	}
 
-	// Create a new pushover app with a API token
-	app := pushover.New(PUSHOVER_APITOKEN)
+	if args.Pushover {
+		sendPushover(args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
+	}
+
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	filterArgs := filters.NewArgs()
+	for key, values := range args.Filter {
+		for _, value := range values {
+			filterArgs.Add(key, value)
+		}
+	}
+
+	log.Debugf("filterArgs = %v", filterArgs)
+
+	// receives events
+	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filterArgs})
+
+	for {
+		select {
+		case err := <-errs:
+			log.Panic(err)
+		case event := <-event_chan:
+			processEvent(args, event)
+			// Adding a small configurable delay here
+			// Sometimes events are pushed through the channel really quickly, but
+			// they arrive on the Pushover clients in wrong order (probably due to message delivery time)
+			// Consuming the events with a small delay solves the issue
+			if args.Pushover {
+				time.Sleep(args.PushoverDelay)
+			}
+		}
+	}
+}
+
+func sendPushover(args args, message, title string) bool {
+
+	// Create a new pushover app with an API token
+	app := pushover.New(args.PushoverAPIToken)
 
 	// Create a new recipient (user key)
-	recipient := pushover.NewRecipient(PUSHOVER_USER)
+	recipient := pushover.NewRecipient(args.PushoverUserKey)
 
 	// Create the message to send
-	pushmessage := pushover.NewMessageWithTitle(message,title)
+	pushmessage := pushover.NewMessageWithTitle(message, title)
 
 	// Send the message to the recipient
 	response, err := app.SendMessage(pushmessage, recipient)
@@ -55,82 +109,99 @@ func sendPushover(message,title string) bool {
 	return false
 }
 
-func processEvent(event events.Message) {
+func processEvent(args args, event events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
-	timestamp := time.Unix(event.Time, 0).Format("02-01-2006 15:04:05")
-	status := event.Status
-	from := event.From
-	ID := event.ID[:8]
+	var message string
 
-	message := fmt.Sprintf("%s New status: %s",timestamp, status)
-	title := fmt.Sprintf("Container %s from image %s",ID, from)
+	// if logging level is Debug or higher, log the event
+	if log.IsLevelEnabled(log.DebugLevel) {
+		log.Debugf("%#v", event)
+	}
 
-	log.Infof("Container %s from image %s with new status: %s",ID,from,status)
+	//event_timestamp := time.Unix(event.Time, 0).Format("02-01-2006 15:04:05")
 
+	//some events don't return Actor.ID or Actor.Attributes["image"]
+	var ID, image string
+	if len(event.Actor.ID) > 0 {
+		ID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ID legth
+	}
+	if len(event.Actor.Attributes["image"]) > 0 {
+		// trim string from left until the final '/'
+		index := strings.LastIndex(event.Actor.Attributes["image"], "/")
+		if index != -1 {
+			image = event.Actor.Attributes["image"][index+1:]
+		} else {
+			image = event.Actor.Attributes["image"]
+		}
+	}
 
-	delivered := sendPushover(message,title)
-	if delivered == true {
-		log.Debugf("Message delivered")
-	} else  {
-		log.Warnf("Message not delivered")
+	// Log and prepare Pushover message
+	if len(ID) == 0 {
+		if len(image) == 0 {
+			message = fmt.Sprintf("Object '%s' reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), event.Action)
+			log.Info(message)
+		} else {
+			message = fmt.Sprintf("Object '%s' from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), image, event.Action)
+			log.Info(message)
+		}
+	} else {
+		if len(image) == 0 {
+			message = fmt.Sprintf("Object '%s' with ID %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, event.Action)
+			log.Info(message)
+		} else {
+			message = fmt.Sprintf("Object '%s' with ID %s from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, image, event.Action)
+			log.Info(message)
+		}
+	}
+
+	if args.Pushover {
+		delivered := sendPushover(args, message, "New Docker Event")
+		if delivered {
+			log.Debugf("Message delivered")
+		} else {
+			log.Warnf("Message not delivered")
+		}
 	}
 }
 
-func init() {
-	// Output to stdout instead of the default stderr
-	// Can be any io.Writer, see below for File example
-	log.SetOutput(os.Stdout)
+func parseArgs() args {
+	var args args
+	parser := arg.MustParse(&args)
 
-	// Set log level - defaults to log.InfoLevel)
-	//log.SetLevel(log.DebugLevel)
+	configureLogger(args.LogLevel)
 
-	// Parse flags/config/env variables
-	flag.StringVar(&PUSHOVER_APITOKEN, "PUSHOVER_APITOKEN", "", "Pushover's API token")
-	flag.StringVar(&PUSHOVER_USER, "PUSHOVER_USER", "", "Pushover's user key")
-	flag.Int64Var(&PUSHOVER_DELAY, "PUSHOVER_DELAY",0, "Delay before sending next Pushover message")
-	flag.Parse()
-  }
+	args.Filter = make(map[string][]string)
 
-func main() {
-	// set filters
-	// https://docs.docker.com/engine/reference/commandline/events/
-	filter := filters.NewArgs()
-	filter.Add("type", "container")
-	filter.Add("event", "start")
-	filter.Add("event", "stop")
-	filter.Add("event", "create")
-	filter.Add("event", "die")
-	filter.Add("event", "kill")
+	for _, filter := range args.FilterStrings {
+		pos := strings.Index(filter, "=")
+		if pos == -1 {
+			parser.Fail("each filter should be of the form key=value")
+		}
+		key := filter[:pos]
+		val := filter[pos+1:]
+		args.Filter[key] = append(args.Filter[key], val)
+	}
 
-	log.Infof("Starting docker event monitor")
-	log.Infof("Using Pushover API Token: %s", PUSHOVER_APITOKEN)
-	log.Infof("Using Pushover User Key %s", PUSHOVER_USER)
-	log.Infof("Using Pushover delay of %d ms", PUSHOVER_DELAY)
+	return args
+}
 
-	sendPushover(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
-
-
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
+func configureLogger(LogLevel string) {
+	// set log level
+	if l, err := log.ParseLevel(LogLevel); err == nil {
+		log.SetLevel(l)
+	} else {
 		log.Panic(err)
 	}
 
-  // receives events
-	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filter})
+	// Output to stdout instead of the default stderr
+	log.SetOutput(os.Stdout)
 
+	// set log formatting
+	log.SetFormatter(&log.TextFormatter{
+		DisableTimestamp:       true,
+		DisableLevelTruncation: true,
+	})
 
-	for {
-		select {
-			case err := <-errs:log.Panic(err)
-			case event := <-event_chan:
-				processEvent(event)
-					// Adding a small configurable delay here
-					// Sometimes events are pushed through the channel really quickly, but
-					// they arrive on the Pushover clients in wrong order (probably due to message delivery time)
-					// Consuming the events with a small delay solves the issue
-					time.Sleep(time.Duration(PUSHOVER_DELAY) * time.Millisecond)
-		}
-	}
 }
