@@ -47,7 +47,7 @@ services:
     environment:
       PUSHOVER: true
       PUSHOVER_USER: 'USER'
-      PUSHOVER_TOKEN: 'TOKEN'
+      PUSHOVER_APITOKEN: 'TOKEN'
       FILTER: 'event=start,event=stop,type=container'
       PUSHOVER_DELAY: '500ms'
       LOG_LEVEL: 'info'
