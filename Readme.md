@@ -12,10 +12,10 @@ Monitor Docker events and send push notifications for each event.
 
 ## Background
 
-I've been using [Monocker](https://github.com/petersem/monocker) to monitor my Docker containers and get push notifications on status changes. However, it's using polling (with hard lower limit of 10 sec) to poll for status changes. This is to long to catch all status changes (e.g. watchtower updating an container). While I did remove the limit in my own Monocker fork I noticed that the CPU usage goes up quite a bit for polling times < 1sec.
+I've been using [Monocker](https://github.com/petersem/monocker) to monitor my Docker containers and get push notifications on status changes. However, it's using polling (with hard lower limit of 10 sec) to poll for status changes. This is too long to catch all status changes (e.g. watchtower updating an container). While I did remove the limit in my own Monocker fork, I noticed that the CPU usage goes up quite a bit for polling times < 1sec.
 I needed another soultion, and found [docker-events-notifier](https://github.com/hasnat/docker-events-notifier), but Pushover integration was missing.
 
-So I started to develop my own solution which ended up being a `bash` script doing exactly what I wanted it to do (you can still find it in `/legacy/`). However, the used `jq` caused CPU spikes for each processed event. As I could not find a fitting solution, I decied to write my own application and to learn something new - [Go](https://go.dev/).
+So I started to develop my own solution which ended up being a `bash` script doing exactly what I wanted it to do (you can still find it in `/legacy/`). However, the used `jq` caused CPU spikes for each processed event. As I could not find a good solution, I decied to write my own application and to learn something new - [Go](https://go.dev/).
 
 As this is my first Go project there is certaily room for improvements (PR's welcome). It borrows heavily form [Dozzle](https://github.com/amir20/dozzle), which you should give a try if you haven't so far.
 
@@ -66,7 +66,7 @@ docker build -t docker-event-monitor:local .
 
 If you have a suitable `Go` environment set up, you can build the binary from `/src/`. For development, a `devcontainer` with a suitable `Dockerfile` is provided as well.
 
-#### Environment variables and configuration
+### Environment variables and configuration
 
 Configurations can use the CLI flags or environment variables. The table below outlines all supported options and their respective env vars.
 
