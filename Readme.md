@@ -28,7 +28,7 @@ The application uses Docker's API to connect to the [event stream](https://docs.
 The simplest way to use the docker event monitor is to run the docker container. It'a very small ( < 10MB) image. You can download it via
 
 ```shell
-docker pull ghcr.io/yubiuser/docker-event-monitor:latest
+docker pull ghcr.io/yubiuser/yubiuser/docker-event-monitor:latest
 ```
 
 ### Docker compose
@@ -39,7 +39,7 @@ version: '2.4'
 services:
   docker-event-monitor:
     container_name: docker-event-monitor
-    image: ghcr.io/yubiuser/docker-event-monitor:latest
+    image: ghcr.io/yubiuser/yubiuser/docker-event-monitor:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/localtime:/etc/localtime:ro
