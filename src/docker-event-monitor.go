@@ -128,13 +128,7 @@ func processEvent(args args, event events.Message) {
 		ID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ID legth
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
-		// trim string from left until the final '/'
-		index := strings.LastIndex(event.Actor.Attributes["image"], "/")
-		if index != -1 {
-			image = event.Actor.Attributes["image"][index+1:]
-		} else {
-			image = event.Actor.Attributes["image"]
-		}
+		image = event.Actor.Attributes["image"]
 	}
 
 	// Log and prepare Pushover message
