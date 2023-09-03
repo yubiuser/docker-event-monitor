@@ -131,24 +131,22 @@ func processEvent(args args, event events.Message) {
 		image = event.Actor.Attributes["image"]
 	}
 
-	// Log and prepare Pushover message
+	// Prepare message
 	if len(ID) == 0 {
 		if len(image) == 0 {
 			message = fmt.Sprintf("Object '%s' reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), event.Action)
-			log.Info(message)
 		} else {
 			message = fmt.Sprintf("Object '%s' from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), image, event.Action)
-			log.Info(message)
 		}
 	} else {
 		if len(image) == 0 {
 			message = fmt.Sprintf("Object '%s' with ID %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, event.Action)
-			log.Info(message)
 		} else {
 			message = fmt.Sprintf("Object '%s' with ID %s from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, image, event.Action)
-			log.Info(message)
 		}
 	}
+
+	log.Info(message)
 
 	if args.Pushover {
 		delivered := sendPushover(args, message, "New Docker Event")
