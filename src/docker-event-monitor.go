@@ -57,10 +57,10 @@ func main() {
 	}
 
 	if args.Pushover {
-		sendPushover(args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
+		sendPushover(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
 	}
 	if args.Gotify {
-		sendGotify(args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
+		sendGotify(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
 	}
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
@@ -85,7 +85,7 @@ func main() {
 		case err := <-errs:
 			log.Panic(err)
 		case event := <-event_chan:
-			processEvent(args, event)
+			processEvent(&args, event)
 			// Adding a small configurable delay here
 			// Sometimes events are pushed through the channel really quickly, but
 			// they arrive on the clients in wrong order (probably due to message delivery time)
@@ -98,12 +98,13 @@ func main() {
 	}
 }
 
-func sendGotify(args args, message, title string) {
+func sendGotify(args *args, message, title string) {
 	http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
 
 }
-func sendPushover(args args, message, title string) bool {
+
+func sendPushover(args *args, message, title string) bool {
 
 	// Create a new pushover app with an API token
 	app := pushover.New(args.PushoverAPIToken)
@@ -132,7 +133,7 @@ func sendPushover(args args, message, title string) bool {
 	return false
 }
 
-func processEvent(args args, event events.Message) {
+func processEvent(args *args, event events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
