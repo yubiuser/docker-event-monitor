@@ -128,6 +128,7 @@ func sendPushover(args *args, message, title string) {
 		// Pushover returns 1 if the message request to the API was valid
 		// https://pushover.net/api#response
 		log.Debugf("Pushover message delivered")
+		return
 	}
 
 	// if response Status !=1
