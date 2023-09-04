@@ -104,7 +104,7 @@ func sendGotify(args *args, message, title string) {
 
 }
 
-func sendPushover(args *args, message, title string) bool {
+func sendPushover(args *args, message, title string) {
 
 	// Create a new pushover app with an API token
 	app := pushover.New(args.PushoverAPIToken)
@@ -127,10 +127,12 @@ func sendPushover(args *args, message, title string) bool {
 	if (*response).Status == 1 {
 		// Pushover returns 1 if the message request to the API was valid
 		// https://pushover.net/api#response
-		return true
+		log.Debugf("Pushover message delivered")
 	}
-	// default to false if response Status !=1
-	return false
+
+	// if response Status !=1
+	log.Warnf("Pushover message not delivered")
+
 }
 
 func processEvent(args *args, event events.Message) {
@@ -173,12 +175,7 @@ func processEvent(args *args, event events.Message) {
 	log.Info(message)
 
 	if args.Pushover {
-		delivered := sendPushover(args, message, "New Docker Event")
-		if delivered {
-			log.Debugf("Pushover message delivered")
-		} else {
-			log.Warnf("Pushover message not delivered")
-		}
+		sendPushover(args, message, "New Docker Event")
 	}
 
 	if args.Gotify {
