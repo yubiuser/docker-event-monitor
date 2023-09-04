@@ -7,7 +7,7 @@ require (
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/gregdel/pushover v1.2.1
 	github.com/sirupsen/logrus v1.9.3
-	golang.org/x/text v0.12.0
+	golang.org/x/text v0.13.0
 )
 
 require (
@@ -25,7 +25,7 @@ require (
 	github.com/stretchr/testify v1.8.4 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/net v0.14.0 // indirect
-	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.12.0 // indirect
 	gotest.tools/v3 v3.5.0 // indirect
