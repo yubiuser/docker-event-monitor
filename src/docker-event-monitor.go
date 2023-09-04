@@ -25,10 +25,10 @@ type args struct {
 	Pushover         bool                `arg:"env:PUSHOVER" default:"false" help:"Enable/Disable Pushover Notification (True/False)"`
 	PushoverAPIToken string              `arg:"env:PUSHOVER_APITOKEN" help:"Pushover's API Token/Key"`
 	PushoverUserKey  string              `arg:"env:PUSHOVER_USER" help:"Pushover's User Key"`
-	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	Gotify           bool                `arg:"env:GOTIFY" default:"false" help:"Enable/Disable Gotify Notification (True/False)"`
 	GotifyURL        string              `arg:"env:GOTIFY_URL" help:"URL of your Gotify server"`
 	GotifyToken      string              `arg:"env:GOTIFY_TOKEN" help:"Gotify's App Token"`
+	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter           map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
@@ -85,7 +85,7 @@ func main() {
 		case err := <-errs:
 			log.Panic(err)
 		case event := <-event_chan:
-			processEvent(&args, event)
+			processEvent(&args, &event)
 			// Adding a small configurable delay here
 			// Sometimes events are pushed through the channel really quickly, but
 			// they arrive on the clients in wrong order (probably due to message delivery time)
@@ -101,7 +101,6 @@ func main() {
 func sendGotify(args *args, message, title string) {
 	http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
-
 }
 
 func sendPushover(args *args, message, title string) {
@@ -136,7 +135,7 @@ func sendPushover(args *args, message, title string) {
 
 }
 
-func processEvent(args *args, event events.Message) {
+func processEvent(args *args, event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
