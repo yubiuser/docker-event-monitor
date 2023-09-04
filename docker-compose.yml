@@ -13,6 +13,6 @@ services:
       PUSHOVER_USER: 'USER'
       PUSHOVER_APITOKEN: 'TOKEN'
       FILTER: 'event=start,event=stop,type=container'
-      PUSHOVER_DELAY: '500ms'
+      DELAY: '500ms'
       LOG_LEVEL: 'info'
 

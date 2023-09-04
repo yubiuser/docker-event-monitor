@@ -25,7 +25,7 @@ type args struct {
 	Pushover         bool                `arg:"env:PUSHOVER" default:"false" help:"Enable/Disable Pushover Notification (True/False)"`
 	PushoverAPIToken string              `arg:"env:PUSHOVER_APITOKEN" help:"Pushover's API Token/Key"`
 	PushoverUserKey  string              `arg:"env:PUSHOVER_USER" help:"Pushover's User Key"`
-	PushoverDelay    time.Duration       `arg:"env:PUSHOVER_DELAY" default:"500ms" help:"Delay before next Pushover message is send"`
+	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	Gotify           bool                `arg:"env:GOTIFY" default:"false" help:"Enable/Disable Gotify Notification (True/False)"`
 	GotifyURL        string              `arg:"env:GOTIFY_URL" help:"URL of your Gotify server"`
 	GotifyToken      string              `arg:"env:GOTIFY_TOKEN" help:"Gotify's App Token"`
@@ -42,7 +42,6 @@ func main() {
 	if args.Pushover {
 		log.Infof("Using Pushover API Token %s", args.PushoverAPIToken)
 		log.Infof("Using Pushover User Key %s", args.PushoverUserKey)
-		log.Infof("Using Pushover delay of %v", args.PushoverDelay)
 	} else {
 		log.Info("Pushover notification disabled")
 	}
@@ -52,6 +51,9 @@ func main() {
 		log.Infof("Using Gotify URL %s", args.GotifyURL)
 	} else {
 		log.Info("Gotify notification disabled")
+	}
+	if args.Delay > 0 {
+		log.Infof("Using delay of %v", args.Delay)
 	}
 
 	if args.Pushover {
@@ -86,10 +88,11 @@ func main() {
 			processEvent(args, event)
 			// Adding a small configurable delay here
 			// Sometimes events are pushed through the channel really quickly, but
-			// they arrive on the Pushover clients in wrong order (probably due to message delivery time)
+			// they arrive on the clients in wrong order (probably due to message delivery time)
+			// This affects mostly Pushover
 			// Consuming the events with a small delay solves the issue
-			if args.Pushover {
-				time.Sleep(args.PushoverDelay)
+			if args.Delay > 0 {
+				time.Sleep(args.Delay)
 			}
 		}
 	}
