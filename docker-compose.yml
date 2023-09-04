@@ -9,9 +9,12 @@ services:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     environment:
-      PUSHOVER: true
+      PUSHOVER: false
       PUSHOVER_USER: 'USER'
       PUSHOVER_APITOKEN: 'TOKEN'
+      GOTIFY: false
+      GOTIFY_URL: 'URL'
+      GOTIFY_TOKEN: 'TOKEN'
       FILTER: 'event=start,event=stop,type=container'
       DELAY: '500ms'
       LOG_LEVEL: 'info'
