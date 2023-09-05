@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -99,8 +100,30 @@ func main() {
 }
 
 func sendGotify(args *args, message, title string) {
-	http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
+	response, err := http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
+	if err != nil {
+		log.Panic(err)
+	}
+
+	defer response.Body.Close()
+
+	statusCode := response.StatusCode
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	log.Debugf("Gotify response statusCode: %d", statusCode)
+	log.Debugf("Gotify response body: %s", string(body))
+
+	// Handle non successfull status codes
+	if statusCode != 200 {
+		log.Warnf("Pushing gotify message failed.")
+		log.Warnf("Gotify response body: %s", string(body))
+	}
+
 }
 
 func sendPushover(args *args, message, title string) {
