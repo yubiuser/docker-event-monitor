@@ -66,7 +66,7 @@ func main() {
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 
 	filterArgs := filters.NewArgs()
@@ -84,7 +84,7 @@ func main() {
 	for {
 		select {
 		case err := <-errs:
-			log.Panic(err)
+			log.Fatal(err)
 		case event := <-event_chan:
 			processEvent(&args, &event)
 			// Adding a small configurable delay here
@@ -103,7 +103,8 @@ func sendGotify(args *args, message, title string) {
 	response, err := http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
+		return
 	}
 
 	defer response.Body.Close()
@@ -112,7 +113,8 @@ func sendGotify(args *args, message, title string) {
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
+		return
 	}
 
 	log.Debugf("Gotify response statusCode: %d", statusCode)
@@ -140,7 +142,8 @@ func sendPushover(args *args, message, title string) {
 	// Send the message to the recipient
 	response, err := app.SendMessage(pushmessage, recipient)
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
+		return
 	}
 	if response != nil {
 		log.Debugf("%s", response)
@@ -232,7 +235,7 @@ func configureLogger(LogLevel string) {
 	if l, err := log.ParseLevel(LogLevel); err == nil {
 		log.SetLevel(l)
 	} else {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 
 	// Output to stdout instead of the default stderr
