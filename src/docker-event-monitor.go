@@ -57,6 +57,14 @@ func main() {
 		log.Infof("Using delay of %v", args.Delay)
 	}
 
+	filterArgs := filters.NewArgs()
+	for key, values := range args.Filter {
+		for _, value := range values {
+			filterArgs.Add(key, value)
+		}
+	}
+	log.Debugf("filterArgs = %v", filterArgs)
+
 	if args.Pushover {
 		sendPushover(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
 	}
@@ -69,16 +77,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	filterArgs := filters.NewArgs()
-	for key, values := range args.Filter {
-		for _, value := range values {
-			filterArgs.Add(key, value)
-		}
-	}
-
-	log.Debugf("filterArgs = %v", filterArgs)
-
-	// receives events
+	// receives events from the channel
 	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filterArgs})
 
 	for {
@@ -120,10 +119,12 @@ func sendGotify(args *args, message, title string) {
 	log.Debugf("Gotify response statusCode: %d", statusCode)
 	log.Debugf("Gotify response body: %s", string(body))
 
-	// Handle non successfull status codes
-	if statusCode != 200 {
-		log.Warnf("Pushing gotify message failed.")
-		log.Warnf("Gotify response body: %s", string(body))
+	// Log non successfull status codes
+	if statusCode == 200 {
+		log.Debugf("Gotify message delivered")
+	} else {
+		log.Errorf("Pushing gotify message failed.")
+		log.Errorf("Gotify response body: %s", string(body))
 	}
 
 }
@@ -157,7 +158,7 @@ func sendPushover(args *args, message, title string) {
 	}
 
 	// if response Status !=1
-	log.Warnf("Pushover message not delivered")
+	log.Errorf("Pushover message not delivered")
 
 }
 
@@ -167,10 +168,8 @@ func processEvent(args *args, event *events.Message) {
 
 	var message string
 
-	// if logging level is Debug or higher, log the event
-	if log.IsLevelEnabled(log.DebugLevel) {
-		log.Debugf("%#v", event)
-	}
+	// if logging level is Debug log the event
+	log.Debugf("%#v", event)
 
 	//event_timestamp := time.Unix(event.Time, 0).Format("02-01-2006 15:04:05")
 
