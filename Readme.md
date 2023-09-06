@@ -8,6 +8,7 @@ Monitor Docker events and send push notifications for each event.
 
 - Small memory and CPU footprint
 - Pushover integration
+- Gotify integration
 - Filter events
 
 ## Background
@@ -45,11 +46,14 @@ services:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     environment:
-      PUSHOVER: true
+      PUSHOVER: false
       PUSHOVER_USER: 'USER'
       PUSHOVER_APITOKEN: 'TOKEN'
+      GOTIFY: false
+      GOTIFY_URL: 'URL'
+      GOTIFY_TOKEN: 'TOKEN'
       FILTER: 'event=start,event=stop,type=container'
-      PUSHOVER_DELAY: '500ms'
+      DELAY: '500ms'
       LOG_LEVEL: 'info'
 ```
 
@@ -75,6 +79,9 @@ Configurations can use the CLI flags or environment variables. The table below o
 | `--pushover`          | `PUSHOVER`             | `false` |Enable/Disable Pushover notification|
 | `--pushoverapitoken`  | `PUSHOVER_APITOKEN`    | `""`    | |
 | `--pushoveruserkey`   | `PUSHOVER_USER`        | `""`    | |
-| `--pushoverdelay`     | `PUSHOVER_DELAY`       | `500ms` |Delay befor processing next event. Can be useful if messages arrive in wrong order |
+| `--delay`             | `DELAY`       | `500ms` |Delay befor processing next event. Can be useful if messages arrive in wrong order |
+| `--gotify`            | `GOTIFY`             | `false` |Enable/Disable Gotify notification|
+| `--gotifyurl`         | `GOTIFY_URL`    | `""`    | |
+| `--gotifytoken`       | `GOTIFY_TOKEN`        | `""`    | |
 | `--filter`            | `FILTER`               | `""`    | Filter events. Uses the same filters as `docker events` (see [here](https://docs.docker.com/engine/reference/commandline/events/#filter))  |
 | `--loglevel`          | `LOG_LEVEL`            | `"info"`| Use `debug` for more verbose logging` |
