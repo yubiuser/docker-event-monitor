@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alexflint/go-arg"
@@ -23,7 +27,10 @@ type args struct {
 	Pushover         bool                `arg:"env:PUSHOVER" default:"false" help:"Enable/Disable Pushover Notification (True/False)"`
 	PushoverAPIToken string              `arg:"env:PUSHOVER_APITOKEN" help:"Pushover's API Token/Key"`
 	PushoverUserKey  string              `arg:"env:PUSHOVER_USER" help:"Pushover's User Key"`
-	PushoverDelay    time.Duration       `arg:"env:PUSHOVER_DELAY" default:"500ms" help:"Delay before next Pushover message is send"`
+	Gotify           bool                `arg:"env:GOTIFY" default:"false" help:"Enable/Disable Gotify Notification (True/False)"`
+	GotifyURL        string              `arg:"env:GOTIFY_URL" help:"URL of your Gotify server"`
+	GotifyToken      string              `arg:"env:GOTIFY_TOKEN" help:"Gotify's App Token"`
+	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter           map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
@@ -31,24 +38,25 @@ type args struct {
 
 func main() {
 	args := parseArgs()
+	var wg sync.WaitGroup
 
 	log.Infof("Starting docker event monitor")
 
 	if args.Pushover {
 		log.Infof("Using Pushover API Token %s", args.PushoverAPIToken)
 		log.Infof("Using Pushover User Key %s", args.PushoverUserKey)
-		log.Infof("Using Pushover delay of %v", args.PushoverDelay)
 	} else {
 		log.Info("Pushover notification disabled")
 	}
 
-	if args.Pushover {
-		sendPushover(args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
+	if args.Gotify {
+		log.Infof("Using Gotify APP Token %s", args.GotifyToken)
+		log.Infof("Using Gotify URL %s", args.GotifyURL)
+	} else {
+		log.Info("Gotify notification disabled")
 	}
-
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		log.Panic(err)
+	if args.Delay > 0 {
+		log.Infof("Using delay of %v", args.Delay)
 	}
 
 	filterArgs := filters.NewArgs()
@@ -57,31 +65,77 @@ func main() {
 			filterArgs.Add(key, value)
 		}
 	}
-
 	log.Debugf("filterArgs = %v", filterArgs)
 
-	// receives events
+	wg.Add(2)
+	if args.Pushover {
+		go sendPushover(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
+	}
+	if args.Gotify {
+		go sendGotify(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
+	}
+
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// receives events from the channel
 	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filterArgs})
 
 	for {
 		select {
 		case err := <-errs:
-			log.Panic(err)
+			log.Fatal(err)
 		case event := <-event_chan:
-			processEvent(args, event)
+			processEvent(&args, &event, &wg)
 			// Adding a small configurable delay here
 			// Sometimes events are pushed through the channel really quickly, but
-			// they arrive on the Pushover clients in wrong order (probably due to message delivery time)
+			// they arrive on the clients in wrong order (probably due to message delivery time)
+			// This affects mostly Pushover
 			// Consuming the events with a small delay solves the issue
-			if args.Pushover {
-				time.Sleep(args.PushoverDelay)
+			if args.Delay > 0 {
+				time.Sleep(args.Delay)
 			}
 		}
 	}
 }
 
-func sendPushover(args args, message, title string) bool {
+func sendGotify(args *args, message, title string, wg *sync.WaitGroup) {
+	defer wg.Done()
 
+	response, err := http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
+		url.Values{"message": {message}, "title": {title}})
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	defer response.Body.Close()
+
+	statusCode := response.StatusCode
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	log.Debugf("Gotify response statusCode: %d", statusCode)
+	log.Debugf("Gotify response body: %s", string(body))
+
+	// Log non successfull status codes
+	if statusCode == 200 {
+		log.Debugf("Gotify message delivered")
+	} else {
+		log.Errorf("Pushing gotify message failed.")
+		log.Errorf("Gotify response body: %s", string(body))
+	}
+
+}
+
+func sendPushover(args *args, message, title string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	// Create a new pushover app with an API token
 	app := pushover.New(args.PushoverAPIToken)
 
@@ -94,7 +148,8 @@ func sendPushover(args args, message, title string) bool {
 	// Send the message to the recipient
 	response, err := app.SendMessage(pushmessage, recipient)
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
+		return
 	}
 	if response != nil {
 		log.Debugf("%s", response)
@@ -103,22 +158,23 @@ func sendPushover(args args, message, title string) bool {
 	if (*response).Status == 1 {
 		// Pushover returns 1 if the message request to the API was valid
 		// https://pushover.net/api#response
-		return true
+		log.Debugf("Pushover message delivered")
+		return
 	}
-	// default to false if response Status !=1
-	return false
+
+	// if response Status !=1
+	log.Errorf("Pushover message not delivered")
+
 }
 
-func processEvent(args args, event events.Message) {
+func processEvent(args *args, event *events.Message, wg *sync.WaitGroup) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
 	var message string
 
-	// if logging level is Debug or higher, log the event
-	if log.IsLevelEnabled(log.DebugLevel) {
-		log.Debugf("%#v", event)
-	}
+	// if logging level is Debug, log the event
+	log.Debugf("%#v", event)
 
 	//event_timestamp := time.Unix(event.Time, 0).Format("02-01-2006 15:04:05")
 
@@ -128,42 +184,39 @@ func processEvent(args args, event events.Message) {
 		ID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ID legth
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
-		// trim string from left until the final '/'
-		index := strings.LastIndex(event.Actor.Attributes["image"], "/")
-		if index != -1 {
-			image = event.Actor.Attributes["image"][index+1:]
-		} else {
-			image = event.Actor.Attributes["image"]
-		}
+		image = event.Actor.Attributes["image"]
 	}
 
-	// Log and prepare Pushover message
+	// Prepare message
 	if len(ID) == 0 {
 		if len(image) == 0 {
 			message = fmt.Sprintf("Object '%s' reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), event.Action)
-			log.Info(message)
 		} else {
 			message = fmt.Sprintf("Object '%s' from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), image, event.Action)
-			log.Info(message)
 		}
 	} else {
 		if len(image) == 0 {
 			message = fmt.Sprintf("Object '%s' with ID %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, event.Action)
-			log.Info(message)
 		} else {
 			message = fmt.Sprintf("Object '%s' with ID %s from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, image, event.Action)
-			log.Info(message)
 		}
 	}
 
+	log.Info(message)
+
+	// Sending messages to different services as goroutines concurrently
+	// Adding a wait group here to delay execution until all functions return,
+	// otherwise the delay in main() would not use its full time
+
+	wg.Add(2)
 	if args.Pushover {
-		delivered := sendPushover(args, message, "New Docker Event")
-		if delivered {
-			log.Debugf("Message delivered")
-		} else {
-			log.Warnf("Message not delivered")
-		}
+		go sendPushover(args, message, "New Docker Event", wg)
 	}
+
+	if args.Gotify {
+		go sendGotify(args, message, "New Docker Event", wg)
+	}
+	wg.Wait()
 }
 
 func parseArgs() args {
@@ -192,7 +245,7 @@ func configureLogger(LogLevel string) {
 	if l, err := log.ParseLevel(LogLevel); err == nil {
 		log.SetLevel(l)
 	} else {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 
 	// Output to stdout instead of the default stderr
