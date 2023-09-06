@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alexflint/go-arg"
@@ -37,6 +38,7 @@ type args struct {
 
 func main() {
 	args := parseArgs()
+	var wg sync.WaitGroup
 
 	log.Infof("Starting docker event monitor")
 
@@ -65,11 +67,12 @@ func main() {
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
 
+	wg.Add(2)
 	if args.Pushover {
-		sendPushover(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
+		go sendPushover(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
 	}
 	if args.Gotify {
-		sendGotify(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
+		go sendGotify(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
 	}
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
@@ -85,7 +88,7 @@ func main() {
 		case err := <-errs:
 			log.Fatal(err)
 		case event := <-event_chan:
-			processEvent(&args, &event)
+			processEvent(&args, &event, &wg)
 			// Adding a small configurable delay here
 			// Sometimes events are pushed through the channel really quickly, but
 			// they arrive on the clients in wrong order (probably due to message delivery time)
@@ -98,7 +101,8 @@ func main() {
 	}
 }
 
-func sendGotify(args *args, message, title string) {
+func sendGotify(args *args, message, title string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	response, err := http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
 	if err != nil {
@@ -129,8 +133,8 @@ func sendGotify(args *args, message, title string) {
 
 }
 
-func sendPushover(args *args, message, title string) {
-
+func sendPushover(args *args, message, title string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	// Create a new pushover app with an API token
 	app := pushover.New(args.PushoverAPIToken)
 
@@ -162,7 +166,7 @@ func sendPushover(args *args, message, title string) {
 
 }
 
-func processEvent(args *args, event *events.Message) {
+func processEvent(args *args, event *events.Message, wg *sync.WaitGroup) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
@@ -199,13 +203,19 @@ func processEvent(args *args, event *events.Message) {
 
 	log.Info(message)
 
+	// Sending messages to different services as goroutines concurrently
+	// Adding a wait group here to delay execution until all functions return,
+	// otherwise the delay in main() would not use its full time
+
+	wg.Add(2)
 	if args.Pushover {
-		sendPushover(args, message, "New Docker Event")
+		go sendPushover(args, message, "New Docker Event", wg)
 	}
 
 	if args.Gotify {
-		sendGotify(args, message, "New Docker Event")
+		go sendGotify(args, message, "New Docker Event", wg)
 	}
+	wg.Wait()
 }
 
 func parseArgs() args {
