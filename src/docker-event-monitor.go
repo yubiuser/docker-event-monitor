@@ -103,6 +103,7 @@ func main() {
 
 func sendGotify(args *args, message, title string, wg *sync.WaitGroup) {
 	defer wg.Done()
+
 	response, err := http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
 	if err != nil {
@@ -172,7 +173,7 @@ func processEvent(args *args, event *events.Message, wg *sync.WaitGroup) {
 
 	var message string
 
-	// if logging level is Debug log the event
+	// if logging level is Debug, log the event
 	log.Debugf("%#v", event)
 
 	//event_timestamp := time.Unix(event.Time, 0).Format("02-01-2006 15:04:05")
