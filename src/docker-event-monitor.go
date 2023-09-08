@@ -67,13 +67,7 @@ func main() {
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
 
-	wg.Add(2)
-	if args.Pushover {
-		go sendPushover(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
-	}
-	if args.Gotify {
-		go sendGotify(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
-	}
+	sendNotifications(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -99,6 +93,24 @@ func main() {
 			}
 		}
 	}
+}
+
+func sendNotifications(args *args, message, title string, wg *sync.WaitGroup) {
+	// Sending messages to different services as goroutines concurrently
+	// Adding a wait group here to delay execution until all functions return,
+	// otherwise the delay in main() would not use its full time
+
+	if args.Pushover {
+		wg.Add(1)
+		go sendPushover(args, message, title, wg)
+	}
+
+	if args.Gotify {
+		wg.Add(1)
+		go sendGotify(args, message, title, wg)
+	}
+	wg.Wait()
+
 }
 
 func sendGotify(args *args, message, title string, wg *sync.WaitGroup) {
@@ -204,19 +216,8 @@ func processEvent(args *args, event *events.Message, wg *sync.WaitGroup) {
 
 	log.Info(message)
 
-	// Sending messages to different services as goroutines concurrently
-	// Adding a wait group here to delay execution until all functions return,
-	// otherwise the delay in main() would not use its full time
+	sendNotifications(args, message, "New Docker Event", wg)
 
-	wg.Add(2)
-	if args.Pushover {
-		go sendPushover(args, message, "New Docker Event", wg)
-	}
-
-	if args.Gotify {
-		go sendGotify(args, message, "New Docker Event", wg)
-	}
-	wg.Wait()
 }
 
 func parseArgs() args {
