@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/smtp"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,12 @@ type args struct {
 	Gotify           bool                `arg:"env:GOTIFY" default:"false" help:"Enable/Disable Gotify Notification (True/False)"`
 	GotifyURL        string              `arg:"env:GOTIFY_URL" help:"URL of your Gotify server"`
 	GotifyToken      string              `arg:"env:GOTIFY_TOKEN" help:"Gotify's App Token"`
+	Mail             bool                `arg:"env:MAIL" default:"false" help:"Enable/Disable Mail (SMTP) Notification (True/False)"`
+	MailFrom         string              `arg:"env:MAIL_FROM" help:"your.username@provider.com"`
+	MailTo           string              `arg:"env:MAIL_TO" help:"recipient@provider.com"`
+	MailPassword     string              `arg:"env:MAIL_PASSWORD" help:"SMTP Password"`
+	MailPort         int                 `arg:"env:MAIL_PORT" default:"587" help:"SMTP Port"`
+	MailHost         string              `arg:"env:MAIL_HOST" help:"SMTP Host"`
 	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter           map[string][]string `arg:"-"`
@@ -60,6 +68,20 @@ func init() {
 			log.Fatalln("Gotify enabled. Gotify APP token required!")
 		}
 	}
+	if glb_arguments.Mail {
+		if len(glb_arguments.MailFrom) == 0 {
+			log.Fatalln("E-Mail notification enabled. Sender address required!")
+		}
+		if len(glb_arguments.MailTo) == 0 {
+			log.Fatalln("E-Mail notification enabled. Recipient address required!")
+		}
+		if len(glb_arguments.MailPassword) == 0 {
+			log.Fatalln("E-Mail notification enabled. SMTP Password required!")
+		}
+		if len(glb_arguments.MailHost) == 0 {
+			log.Fatalln("E-Mail notification enabled. SMTP host address required!")
+		}
+	}
 }
 
 func main() {
@@ -68,18 +90,22 @@ func main() {
 	log.Infof("Starting docker event monitor")
 
 	if glb_arguments.Pushover {
-		log.Infof("Using Pushover API Token %s", glb_arguments.PushoverAPIToken)
-		log.Infof("Using Pushover User Key %s", glb_arguments.PushoverUserKey)
+		log.Infof("Notify via Pushover, using API Token %s and user key %s", glb_arguments.PushoverAPIToken, glb_arguments.PushoverUserKey)
 	} else {
 		log.Info("Pushover notification disabled")
 	}
 
 	if glb_arguments.Gotify {
-		log.Infof("Using Gotify APP Token %s", glb_arguments.GotifyToken)
-		log.Infof("Using Gotify URL %s", glb_arguments.GotifyURL)
+		log.Infof("Notify via Gotify, using URL %s and APP Token %s", glb_arguments.GotifyURL, glb_arguments.GotifyToken)
 	} else {
 		log.Info("Gotify notification disabled")
 	}
+	if glb_arguments.Mail {
+		log.Infof("Notify via E-Mail from %s to %s using host %s and port %d", glb_arguments.MailFrom, glb_arguments.MailTo, glb_arguments.MailHost, glb_arguments.MailPort)
+	} else {
+		log.Info("E-Mail notification disabled")
+	}
+
 	if glb_arguments.Delay > 0 {
 		log.Infof("Using delay of %v", glb_arguments.Delay)
 	}
@@ -134,8 +160,47 @@ func sendNotifications(message, title string, wg *sync.WaitGroup) {
 		wg.Add(1)
 		go sendGotify(message, title, wg)
 	}
+
+	if glb_arguments.Mail {
+		wg.Add(1)
+		go sendMail(message, title, wg)
+	}
 	wg.Wait()
 
+}
+
+func BuildMessage(from string, to []string, subject, body string) string {
+	msg := fmt.Sprintf("From: %s\r\n", from)
+	msg += fmt.Sprintf("To: %s\r\n", strings.Join(to, ";"))
+	msg += fmt.Sprintf("Subject: %s\r\n", subject)
+	msg += fmt.Sprintf("\r\n%s\r\n", body)
+
+	return msg
+}
+
+func sendMail(message, title string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	from := glb_arguments.MailFrom
+	to := []string{glb_arguments.MailTo}
+	password := glb_arguments.MailPassword
+
+	host := glb_arguments.MailHost
+	port := strconv.Itoa(glb_arguments.MailPort)
+	address := host + ":" + port
+
+	subject := title
+	body := message
+
+	mail := BuildMessage(from, to, subject, body)
+
+	auth := smtp.PlainAuth("", from, password, host)
+
+	err := smtp.SendMail(address, auth, from, to, []byte(mail))
+	if err != nil {
+		log.Error(err)
+		return
+	}
 }
 
 func sendGotify(message, title string, wg *sync.WaitGroup) {
