@@ -7,8 +7,9 @@ Monitor Docker events and send push notifications for each event.
 ## Features
 
 - Small memory and CPU footprint
-- Pushover integration
-- Gotify integration
+- Pushover notification
+- Gotify notification
+- E-Mail notification (SMTP)
 - Filter events
 
 ## Background
@@ -29,7 +30,7 @@ The application uses Docker's API to connect to the [event stream](https://docs.
 The simplest way to use the docker event monitor is to run the docker container. It'a very small ( < 10MB) image. You can download it via
 
 ```shell
-docker pull ghcr.io/yubiuser/yubiuser/docker-event-monitor:latest
+docker pull ghcr.io/yubiuser/docker-event-monitor:latest
 ```
 
 ### Docker compose
@@ -40,7 +41,7 @@ version: '2.4'
 services:
   docker-event-monitor:
     container_name: docker-event-monitor
-    image: ghcr.io/yubiuser/yubiuser/docker-event-monitor:latest
+    image: ghcr.io/yubiuser/docker-event-monitor:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/localtime:/etc/localtime:ro
@@ -52,6 +53,12 @@ services:
       GOTIFY: false
       GOTIFY_URL: 'URL'
       GOTIFY_TOKEN: 'TOKEN'
+      MAIL: false
+      MAIL_FROM: 'your.username@provider.com'
+      MAIL_TO: 'recipient@provider.com'
+      MAIL_PASSWORD: 'PASSWORD'
+      MAIL_PORT: 587
+      MAIL_HOST: 'smtp@provider.com'
       FILTER: 'event=start,event=stop,type=container'
       DELAY: '500ms'
       LOG_LEVEL: 'info'
@@ -74,14 +81,20 @@ If you have a suitable `Go` environment set up, you can build the binary from `/
 
 Configurations can use the CLI flags or environment variables. The table below outlines all supported options and their respective env vars.
 
-| Flag                  | Env Variable           | Default | Details |
-| ----------------      | ---------------------- | ------- |-------- |
-| `--pushover`          | `PUSHOVER`             | `false` |Enable/Disable Pushover notification|
-| `--pushoverapitoken`  | `PUSHOVER_APITOKEN`    | `""`    | |
-| `--pushoveruserkey`   | `PUSHOVER_USER`        | `""`    | |
-| `--delay`             | `DELAY`       | `500ms` |Delay befor processing next event. Can be useful if messages arrive in wrong order |
-| `--gotify`            | `GOTIFY`             | `false` |Enable/Disable Gotify notification|
-| `--gotifyurl`         | `GOTIFY_URL`    | `""`    | |
-| `--gotifytoken`       | `GOTIFY_TOKEN`        | `""`    | |
-| `--filter`            | `FILTER`               | `""`    | Filter events. Uses the same filters as `docker events` (see [here](https://docs.docker.com/engine/reference/commandline/events/#filter))  |
-| `--loglevel`          | `LOG_LEVEL`            | `"info"`| Use `debug` for more verbose logging` |
+| Flag                  | Env Variable            | Default | Details |
+| ----------------      | ----------------------  | ------- |-------- |
+| `--pushover`          | `PUSHOVER`              | `false` |Enable/Disable Pushover notification|
+| `--pushoverapitoken`  | `PUSHOVER_APITOKEN`     | `""`    | |
+| `--pushoveruserkey`   | `PUSHOVER_USER`         | `""`    | |
+| `--delay`             | `DELAY`                 | `500ms` |Delay befor processing next event. Can be useful if messages arrive in wrong order |
+| `--gotify`            | `GOTIFY`                | `false` |Enable/Disable Gotify notification|
+| `--gotifyurl`         | `GOTIFY_URL`            | `""`    | |
+| `--gotifytoken`       | `GOTIFY_TOKEN`          | `""`    | |
+| `--mail`              | `MAIL`                  | `false` |Enable/Disable E-Mail (SMTP) notification|
+| `--mailfrom`          | `MAIL_FROM`             | `""`    | `your.username@provider.com` |
+| `--mailto`            | `MAIL_TO`               | `""`    | `recipient@provider.com` |
+| `--mailpassword`      | `MAIL_PASSWORD`         | `""`    | |
+| `--mailport`          | `MAIL_PORT`             | `587`   | |
+| `--mailhost`          | `MAIL_HOST`             | `""`    | `smtp@provider.com` |
+| `--filter`            | `FILTER`                | `""`    | Filter events. Uses the same filters as `docker events` (see [here](https://docs.docker.com/engine/reference/commandline/events/#filter))    |
+| `--loglevel`          | `LOG_LEVEL`             | `"info"`| Use `debug` for more verbose logging` |
