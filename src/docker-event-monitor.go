@@ -85,7 +85,6 @@ func init() {
 }
 
 func main() {
-	var wg sync.WaitGroup
 
 	log.Infof("Starting docker event monitor")
 
@@ -108,6 +107,8 @@ func main() {
 
 	if glb_arguments.Delay > 0 {
 		log.Infof("Using delay of %v", glb_arguments.Delay)
+	} else {
+		log.Info("Delay disabled")
 	}
 
 	filterArgs := filters.NewArgs()
@@ -118,7 +119,7 @@ func main() {
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
 
-	sendNotifications(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
+	sendNotifications(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -133,37 +134,40 @@ func main() {
 		case err := <-errs:
 			log.Fatal(err)
 		case event := <-event_chan:
-			processEvent(&event, &wg)
-			// Adding a small configurable delay here
-			// Sometimes events are pushed through the channel really quickly, but
-			// they arrive on the clients in wrong order (probably due to message delivery time)
-			// This affects mostly Pushover
-			// Consuming the events with a small delay solves the issue
-			if glb_arguments.Delay > 0 {
-				time.Sleep(glb_arguments.Delay)
-			}
+			processEvent(&event)
 		}
 	}
 }
 
-func sendNotifications(message, title string, wg *sync.WaitGroup) {
+func sendNotifications(message, title string) {
 	// Sending messages to different services as goroutines concurrently
 	// Adding a wait group here to delay execution until all functions return,
-	// otherwise the delay in main() would not use its full time
+	// otherwise delaying in processEvent() would not make any sense
+
+	var wg sync.WaitGroup
 
 	if glb_arguments.Pushover {
 		wg.Add(1)
-		go sendPushover(message, title, wg)
+		go func() {
+			defer wg.Done()
+			sendPushover(message, title)
+		}()
 	}
 
 	if glb_arguments.Gotify {
 		wg.Add(1)
-		go sendGotify(message, title, wg)
+		go func() {
+			defer wg.Done()
+			sendGotify(message, title)
+		}()
 	}
 
 	if glb_arguments.Mail {
 		wg.Add(1)
-		go sendMail(message, title, wg)
+		go func() {
+			defer wg.Done()
+			sendMail(message, title)
+		}()
 	}
 	wg.Wait()
 
@@ -178,8 +182,7 @@ func BuildMessage(from string, to []string, subject, body string) string {
 	return msg
 }
 
-func sendMail(message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func sendMail(message, title string) {
 
 	from := glb_arguments.MailFrom
 	to := []string{glb_arguments.MailTo}
@@ -203,8 +206,7 @@ func sendMail(message, title string, wg *sync.WaitGroup) {
 	}
 }
 
-func sendGotify(message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func sendGotify(message, title string) {
 
 	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
@@ -236,8 +238,7 @@ func sendGotify(message, title string, wg *sync.WaitGroup) {
 
 }
 
-func sendPushover(message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func sendPushover(message, title string) {
 	// Create a new pushover app with an API token
 	app := pushover.New(glb_arguments.PushoverAPIToken)
 
@@ -269,16 +270,20 @@ func sendPushover(message, title string, wg *sync.WaitGroup) {
 
 }
 
-func processEvent(event *events.Message, wg *sync.WaitGroup) {
+func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
 	var message string
 
+	// Adding a small configurable delay here
+	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
+	// wrong order (probably due to message delivery time), e.g. Pushover is susceptible for this.
+	// Finishing this function not before a certain time before draining the next event from the event channel in main() solves the issue
+	timer := time.NewTimer(glb_arguments.Delay)
+
 	// if logging level is Debug, log the event
 	log.Debugf("%#v", event)
-
-	//event_timestamp := time.Unix(event.Time, 0).Format("02-01-2006 15:04:05")
 
 	//some events don't return Actor.ID or Actor.Attributes["image"]
 	var ID, image string
@@ -305,8 +310,14 @@ func processEvent(event *events.Message, wg *sync.WaitGroup) {
 	}
 
 	log.Info(message)
+	// send notifications to various reporters
+	// function will finish when all reporters finished
+	sendNotifications(message, "New Docker Event")
 
-	sendNotifications(message, "New Docker Event", wg)
+	// block function until time (delay) triggers
+	// if sendNotifications is faster than the delay, function blocks here until delay is over
+	// if sendNotifications takes longer than the delay, trigger already fired and no delay is added
+	<-timer.C
 
 }
 
