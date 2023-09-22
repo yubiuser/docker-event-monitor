@@ -85,7 +85,6 @@ func init() {
 }
 
 func main() {
-	var wg sync.WaitGroup
 
 	log.Infof("Starting docker event monitor")
 
@@ -118,7 +117,7 @@ func main() {
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
 
-	sendNotifications(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
+	sendNotifications(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -133,7 +132,7 @@ func main() {
 		case err := <-errs:
 			log.Fatal(err)
 		case event := <-event_chan:
-			processEvent(&event, &wg)
+			processEvent(&event)
 			// Adding a small configurable delay here
 			// Sometimes events are pushed through the channel really quickly, but
 			// they arrive on the clients in wrong order (probably due to message delivery time)
@@ -146,24 +145,35 @@ func main() {
 	}
 }
 
-func sendNotifications(message, title string, wg *sync.WaitGroup) {
+func sendNotifications(message, title string) {
 	// Sending messages to different services as goroutines concurrently
 	// Adding a wait group here to delay execution until all functions return,
 	// otherwise the delay in main() would not use its full time
 
+	var wg sync.WaitGroup
+
 	if glb_arguments.Pushover {
 		wg.Add(1)
-		go sendPushover(message, title, wg)
+		go func() {
+			defer wg.Done()
+			sendPushover(message, title)
+		}()
 	}
 
 	if glb_arguments.Gotify {
 		wg.Add(1)
-		go sendGotify(message, title, wg)
+		go func() {
+			defer wg.Done()
+			sendGotify(message, title)
+		}()
 	}
 
 	if glb_arguments.Mail {
 		wg.Add(1)
-		go sendMail(message, title, wg)
+		go func() {
+			defer wg.Done()
+			sendMail(message, title)
+		}()
 	}
 	wg.Wait()
 
@@ -178,8 +188,7 @@ func BuildMessage(from string, to []string, subject, body string) string {
 	return msg
 }
 
-func sendMail(message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func sendMail(message, title string) {
 
 	from := glb_arguments.MailFrom
 	to := []string{glb_arguments.MailTo}
@@ -203,8 +212,7 @@ func sendMail(message, title string, wg *sync.WaitGroup) {
 	}
 }
 
-func sendGotify(message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func sendGotify(message, title string) {
 
 	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
@@ -236,8 +244,7 @@ func sendGotify(message, title string, wg *sync.WaitGroup) {
 
 }
 
-func sendPushover(message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func sendPushover(message, title string) {
 	// Create a new pushover app with an API token
 	app := pushover.New(glb_arguments.PushoverAPIToken)
 
@@ -269,7 +276,7 @@ func sendPushover(message, title string, wg *sync.WaitGroup) {
 
 }
 
-func processEvent(event *events.Message, wg *sync.WaitGroup) {
+func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
@@ -306,7 +313,7 @@ func processEvent(event *events.Message, wg *sync.WaitGroup) {
 
 	log.Info(message)
 
-	sendNotifications(message, "New Docker Event", wg)
+	sendNotifications(message, "New Docker Event")
 
 }
 
