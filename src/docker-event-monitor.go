@@ -42,6 +42,7 @@ type args struct {
 	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter           map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
+	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
 }
 
 // hold the supplied run-time arguments globally
@@ -145,6 +146,11 @@ func sendNotifications(message, title string) {
 	// otherwise delaying in processEvent() would not make any sense
 
 	var wg sync.WaitGroup
+
+	// If there is a server tag, add it to the title
+	if len(glb_arguments.ServerTag) > 0 {
+		title = "[" + glb_arguments.ServerTag + "] " + title
+	}
 
 	if glb_arguments.Pushover {
 		wg.Add(1)
