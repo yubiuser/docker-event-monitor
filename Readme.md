@@ -56,7 +56,7 @@ services:
       MAIL: false
       MAIL_FROM: 'your.username@provider.com'
       MAIL_TO: 'recipient@provider.com'
-      MAIL_USER: 'USER'
+      MAIL_USER: 'SMTP USER'
       MAIL_PASSWORD: 'PASSWORD'
       MAIL_PORT: 587
       MAIL_HOST: 'smtp@provider.com'
@@ -84,17 +84,17 @@ Configurations can use the CLI flags or environment variables. The table below o
 
 | Flag                  | Env Variable            | Default | Details |
 | ----------------      | ----------------------  | ------- |-------- |
-| `--pushover`          | `PUSHOVER`              | `false` |Enable/Disable Pushover notification|
+| `--pushover`          | `PUSHOVER`              | `false` | Enable/Disable Pushover notification|
 | `--pushoverapitoken`  | `PUSHOVER_APITOKEN`     | `""`    | |
 | `--pushoveruserkey`   | `PUSHOVER_USER`         | `""`    | |
-| `--delay`             | `DELAY`                 | `500ms` |Delay befor processing next event. Can be useful if messages arrive in wrong order |
-| `--gotify`            | `GOTIFY`                | `false` |Enable/Disable Gotify notification|
+| `--delay`             | `DELAY`                 | `500ms` | Delay befor processing next event. Can be useful if messages arrive in wrong order |
+| `--gotify`            | `GOTIFY`                | `false` | Enable/Disable Gotify notification|
 | `--gotifyurl`         | `GOTIFY_URL`            | `""`    | |
 | `--gotifytoken`       | `GOTIFY_TOKEN`          | `""`    | |
-| `--mail`              | `MAIL`                  | `false` |Enable/Disable E-Mail (SMTP) notification|
-| `--mailfrom`          | `MAIL_FROM`             | `""`    | `your.username@provider.com` |
+| `--mail`              | `MAIL`                  | `false` | Enable/Disable E-Mail (SMTP) notification|
+| `--mailfrom`          | `MAIL_FROM`             | `""`    | optional: `your.username@provider.com`, set to MAIL_USER if empty/unset |
 | `--mailto`            | `MAIL_TO`               | `""`    | `recipient@provider.com` |
-| `--mailuser`          | `MAIL_USER`             | `""`    | optional: SMTP username, set to `MAIL_FROM` if empty/unset |
+| `--mailuser`          | `MAIL_USER`             | `""`    | SMTP username |
 | `--mailpassword`      | `MAIL_PASSWORD`         | `""`    | |
 | `--mailport`          | `MAIL_PORT`             | `587`   | |
 | `--mailhost`          | `MAIL_HOST`             | `""`    | `smtp@provider.com` |
