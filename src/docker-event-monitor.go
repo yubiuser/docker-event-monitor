@@ -91,30 +91,34 @@ func init() {
 
 func main() {
 
-	log.Infof("Starting docker event monitor")
+	log.Info("Starting docker event monitor")
+
+	var info string
 
 	if glb_arguments.Pushover {
-		log.Infof("Notify via Pushover, using API Token %s and user key %s", glb_arguments.PushoverAPIToken, glb_arguments.PushoverUserKey)
+		info = fmt.Sprintf("Notify via Pushover, using API Token %s and user key %s", glb_arguments.PushoverAPIToken, glb_arguments.PushoverUserKey)
 	} else {
-		log.Info("Pushover notification disabled")
+		info = "Pushover notification disabled"
 	}
 
 	if glb_arguments.Gotify {
-		log.Infof("Notify via Gotify, using URL %s and APP Token %s", glb_arguments.GotifyURL, glb_arguments.GotifyToken)
+		info += fmt.Sprintf("\nNotify via Gotify, using URL %s and APP Token %s", glb_arguments.GotifyURL, glb_arguments.GotifyToken)
 	} else {
-		log.Info("Gotify notification disabled")
+		info += "\nGotify notification disabled"
 	}
 	if glb_arguments.Mail {
-		log.Infof("Notify via E-Mail from %s to %s using host %s and port %d", glb_arguments.MailFrom, glb_arguments.MailTo, glb_arguments.MailHost, glb_arguments.MailPort)
+		info += fmt.Sprintf("\nNotify via E-Mail from %s to %s using host %s and port %d", glb_arguments.MailFrom, glb_arguments.MailTo, glb_arguments.MailHost, glb_arguments.MailPort)
 	} else {
-		log.Info("E-Mail notification disabled")
+		info += "\nE-Mail notification disabled"
 	}
 
 	if glb_arguments.Delay > 0 {
-		log.Infof("Using delay of %v", glb_arguments.Delay)
+		info += fmt.Sprintf("\nUsing delay of %v", glb_arguments.Delay)
 	} else {
-		log.Info("Delay disabled")
+		info += "\nDelay disabled"
 	}
+
+	log.Info(info)
 
 	filterArgs := filters.NewArgs()
 	for key, values := range glb_arguments.Filter {
@@ -124,7 +128,7 @@ func main() {
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
 
-	sendNotifications(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
+	sendNotifications(info, "Starting docker event monitor")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
