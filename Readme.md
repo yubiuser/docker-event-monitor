@@ -56,6 +56,7 @@ services:
       MAIL: false
       MAIL_FROM: 'your.username@provider.com'
       MAIL_TO: 'recipient@provider.com'
+      MAIL_USER: 'USER'
       MAIL_PASSWORD: 'PASSWORD'
       MAIL_PORT: 587
       MAIL_HOST: 'smtp@provider.com'
@@ -93,6 +94,7 @@ Configurations can use the CLI flags or environment variables. The table below o
 | `--mail`              | `MAIL`                  | `false` |Enable/Disable E-Mail (SMTP) notification|
 | `--mailfrom`          | `MAIL_FROM`             | `""`    | `your.username@provider.com` |
 | `--mailto`            | `MAIL_TO`               | `""`    | `recipient@provider.com` |
+| `--mailuser`          | `MAIL_USER`             | `""`    | optional: SMTP username, set to `MAIL_FROM` if empty/unset |
 | `--mailpassword`      | `MAIL_PASSWORD`         | `""`    | |
 | `--mailport`          | `MAIL_PORT`             | `587`   | |
 | `--mailhost`          | `MAIL_HOST`             | `""`    | `smtp@provider.com` |

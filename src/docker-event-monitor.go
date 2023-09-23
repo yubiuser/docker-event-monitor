@@ -35,6 +35,7 @@ type args struct {
 	Mail             bool                `arg:"env:MAIL" default:"false" help:"Enable/Disable Mail (SMTP) Notification (True/False)"`
 	MailFrom         string              `arg:"env:MAIL_FROM" help:"your.username@provider.com"`
 	MailTo           string              `arg:"env:MAIL_TO" help:"recipient@provider.com"`
+	MailUser         string              `arg:"env:MAIL_USER" help:"SMTP Username"`
 	MailPassword     string              `arg:"env:MAIL_PASSWORD" help:"SMTP Password"`
 	MailPort         int                 `arg:"env:MAIL_PORT" default:"587" help:"SMTP Port"`
 	MailHost         string              `arg:"env:MAIL_HOST" help:"SMTP Host"`
@@ -75,6 +76,9 @@ func init() {
 		}
 		if len(glb_arguments.MailTo) == 0 {
 			log.Fatalln("E-Mail notification enabled. Recipient address required!")
+		}
+		if len(glb_arguments.MailUser) == 0 {
+			glb_arguments.MailUser = glb_arguments.MailFrom
 		}
 		if len(glb_arguments.MailPassword) == 0 {
 			log.Fatalln("E-Mail notification enabled. SMTP Password required!")
@@ -192,6 +196,7 @@ func sendMail(message, title string) {
 
 	from := glb_arguments.MailFrom
 	to := []string{glb_arguments.MailTo}
+	username := glb_arguments.MailUser
 	password := glb_arguments.MailPassword
 
 	host := glb_arguments.MailHost
@@ -203,7 +208,7 @@ func sendMail(message, title string) {
 
 	mail := BuildMessage(from, to, subject, body)
 
-	auth := smtp.PlainAuth("", from, password, host)
+	auth := smtp.PlainAuth("", username, password, host)
 
 	err := smtp.SendMail(address, auth, from, to, []byte(mail))
 	if err != nil {
