@@ -98,4 +98,4 @@ Configurations can use the CLI flags or environment variables. The table below o
 | `--mailhost`          | `MAIL_HOST`             | `""`    | `smtp@provider.com` |
 | `--filter`            | `FILTER`                | `""`    | Filter events. Uses the same filters as `docker events` (see [here](https://docs.docker.com/engine/reference/commandline/events/#filter))    |
 | `--loglevel`          | `LOG_LEVEL`             | `"info"`| Use `debug` for more verbose logging |
-| `--servertag`         | `SERVER_TAG`            | `""`    | Useful when running docker-event-monitors on multiple machines |
+| `--servertag`         | `SERVER_TAG`            | `""`    | Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines |
