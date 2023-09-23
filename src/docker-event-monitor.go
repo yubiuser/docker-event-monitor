@@ -285,7 +285,7 @@ func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
-	var message string
+	var message, title string
 
 	// Adding a small configurable delay here
 	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
@@ -297,33 +297,55 @@ func processEvent(event *events.Message) {
 	log.Debugf("%#v", event)
 
 	//some events don't return Actor.ID or Actor.Attributes["image"]
-	var ID, image string
+	var ID, image, name, tidentifier, midentifier string
 	if len(event.Actor.ID) > 0 {
 		ID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ID legth
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
 		image = event.Actor.Attributes["image"]
 	}
+	if len(event.Actor.Attributes["name"]) > 0 {
+		name = event.Actor.Attributes["name"]
+	}
 
-	// Prepare message
-	if len(ID) == 0 {
-		if len(image) == 0 {
-			message = fmt.Sprintf("Object '%s' reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), event.Action)
-		} else {
-			message = fmt.Sprintf("Object '%s' from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), image, event.Action)
-		}
-	} else {
-		if len(image) == 0 {
-			message = fmt.Sprintf("Object '%s' with ID %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, event.Action)
-		} else {
-			message = fmt.Sprintf("Object '%s' with ID %s from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, image, event.Action)
-		}
+	// Check possible image and container name
+	// The order of the checks is important, because we want name rather than ID
+	// as identifier in the title
+	if len(ID) > 0 {
+		midentifier += "\nID: " + ID
+		tidentifier = ID
+	}
+	if len(image) > 0 {
+		midentifier += "\nImage: " + image
+		// Not using image as possible title, because it's too long
+	}
+	if len(name) > 0 {
+		midentifier += "\nName: " + name
+		tidentifier = name
+	}
+
+	// Build message
+	title = cases.Title(language.English, cases.Compact).String(event.Type)
+	if len(tidentifier) > 0 {
+		title += " " + tidentifier
+	}
+	title += ": " + event.Action
+
+	// Start message with human readable time
+	message = title + midentifier
+
+	// Append possible docker compose context
+	if len(event.Actor.Attributes["com.docker.compose.project.working_dir"]) > 0 {
+		message += fmt.Sprintf("\nDocker compose context: %s", event.Actor.Attributes["com.docker.compose.project.working_dir"])
+	}
+	if len(event.Actor.Attributes["com.docker.compose.service"]) > 0 {
+		message += fmt.Sprintf("\nDocker compose service: %s", event.Actor.Attributes["com.docker.compose.service"])
 	}
 
 	log.Info(message)
 	// send notifications to various reporters
 	// function will finish when all reporters finished
-	sendNotifications(message, "New Docker Event")
+	sendNotifications(message, title)
 
 	// block function until time (delay) triggers
 	// if sendNotifications is faster than the delay, function blocks here until delay is over
