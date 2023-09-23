@@ -77,7 +77,7 @@ func init() {
 			log.Fatalln("E-Mail notification enabled. Recipient address required!")
 		}
 		if len(glb_arguments.MailUser) == 0 {
-			log.Fatalln("E-Mail notification enabled. SMTP Username required!")
+			glb_arguments.MailUser = glb_arguments.MailFrom
 		}
 		if len(glb_arguments.MailPassword) == 0 {
 			log.Fatalln("E-Mail notification enabled. SMTP Password required!")
