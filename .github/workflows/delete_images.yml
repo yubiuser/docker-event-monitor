@@ -9,7 +9,7 @@ env:
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  Delete untagged images:
+  Delete_untagged_images:
     runs-on: ubuntu-latest
     permissions:
       contents: read
