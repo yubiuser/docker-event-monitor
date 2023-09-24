@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/smtp"
@@ -93,32 +92,36 @@ func main() {
 
 	log.Info("Starting docker event monitor")
 
-	var info string
+	var startup_message_builder strings.Builder
 
 	if glb_arguments.Pushover {
-		info = fmt.Sprintf("Notify via Pushover, using API Token %s and user key %s", glb_arguments.PushoverAPIToken, glb_arguments.PushoverUserKey)
+		startup_message_builder.WriteString("Notify via Pushover, using API Token " + glb_arguments.PushoverAPIToken + " and user key " + glb_arguments.PushoverUserKey)
 	} else {
-		info = "Pushover notification disabled"
+		startup_message_builder.WriteString("Pushover notification disabled")
 	}
 
 	if glb_arguments.Gotify {
-		info += fmt.Sprintf("\nNotify via Gotify, using URL %s and APP Token %s", glb_arguments.GotifyURL, glb_arguments.GotifyToken)
+		startup_message_builder.WriteString("\nNotify via Gotify, using URL " + glb_arguments.GotifyURL + " and APP Token " + glb_arguments.GotifyToken)
 	} else {
-		info += "\nGotify notification disabled"
+		startup_message_builder.WriteString("\nGotify notification disabled")
 	}
 	if glb_arguments.Mail {
-		info += fmt.Sprintf("\nNotify via E-Mail from %s to %s using host %s and port %d", glb_arguments.MailFrom, glb_arguments.MailTo, glb_arguments.MailHost, glb_arguments.MailPort)
+		startup_message_builder.WriteString("\nNotify via E-Mail from " + glb_arguments.MailFrom + " to " + glb_arguments.MailTo + " using host " + glb_arguments.MailHost + " and port " + strconv.Itoa(glb_arguments.MailPort))
 	} else {
-		info += "\nE-Mail notification disabled"
+		startup_message_builder.WriteString("\nE-Mail notification disabled")
 	}
 
 	if glb_arguments.Delay > 0 {
-		info += fmt.Sprintf("\nUsing delay of %v", glb_arguments.Delay)
+		startup_message_builder.WriteString("\nUsing delay of " + glb_arguments.Delay.String())
 	} else {
-		info += "\nDelay disabled"
+		startup_message_builder.WriteString("\nDelay disabled")
 	}
 
-	log.Info(info)
+	startup_message_builder.WriteString("\nLog level: " + glb_arguments.LogLevel)
+
+	startup_message := startup_message_builder.String()
+	log.Info(startup_message)
+	sendNotifications(startup_message, "Starting docker event monitor")
 
 	filterArgs := filters.NewArgs()
 	for key, values := range glb_arguments.Filter {
@@ -127,8 +130,6 @@ func main() {
 		}
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
-
-	sendNotifications(info, "Starting docker event monitor")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -188,12 +189,14 @@ func sendNotifications(message, title string) {
 }
 
 func BuildMessage(from string, to []string, subject, body string) string {
-	msg := fmt.Sprintf("From: %s\r\n", from)
-	msg += fmt.Sprintf("To: %s\r\n", strings.Join(to, ";"))
-	msg += fmt.Sprintf("Subject: %s\r\n", subject)
-	msg += fmt.Sprintf("\r\n%s\r\n", body)
+	var msg strings.Builder
+	msg.WriteString("From: " + from + "\r\n")
+	msg.WriteString("To: " + strings.Join(to, ";") + "\r\n")
+	msg.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
+	msg.WriteString("Subject: " + subject + "\r\n")
+	msg.WriteString("\r\n" + body + "\r\n")
 
-	return msg
+	return msg.String()
 }
 
 func sendMail(message, title string) {
@@ -289,7 +292,8 @@ func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
-	var message, title string
+	var msg_builder, title_builder, mid_builder strings.Builder
+	var ID, image, name, titleid string
 
 	// Adding a small configurable delay here
 	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
@@ -301,7 +305,6 @@ func processEvent(event *events.Message) {
 	log.Debugf("%#v", event)
 
 	//some events don't return Actor.ID or Actor.Attributes["image"]
-	var ID, image, name, tidentifier, midentifier string
 	if len(event.Actor.ID) > 0 {
 		ID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ID legth
 	}
@@ -316,37 +319,44 @@ func processEvent(event *events.Message) {
 	// The order of the checks is important, because we want name rather than ID
 	// as identifier in the title
 	if len(ID) > 0 {
-		midentifier += "\nID: " + ID
-		tidentifier = ID
+		mid_builder.WriteString("\nID: " + ID)
+		titleid = ID
 	}
 	if len(image) > 0 {
-		midentifier += "\nImage: " + image
+		mid_builder.WriteString("\nImage: " + image)
 		// Not using image as possible title, because it's too long
 	}
 	if len(name) > 0 {
-		midentifier += "\nName: " + name
-		tidentifier = name
+		mid_builder.WriteString("\nName: " + name)
+		titleid = name
 	}
 
 	// Build message
-	title = cases.Title(language.English, cases.Compact).String(event.Type)
-	if len(tidentifier) > 0 {
-		title += " " + tidentifier
+	title_builder.WriteString(cases.Title(language.English, cases.Compact).String(event.Type))
+	if len(titleid) > 0 {
+		title_builder.WriteString(" " + titleid)
 	}
-	title += ": " + event.Action
+	title_builder.WriteString(": " + event.Action)
 
-	// Start message with human readable time
-	message = title + midentifier
+	// Start message with title and id
+	title := title_builder.String()
+	mid := mid_builder.String()
+	msg_builder.WriteString(title + mid)
 
 	// Append possible docker compose context
 	if len(event.Actor.Attributes["com.docker.compose.project.working_dir"]) > 0 {
-		message += fmt.Sprintf("\nDocker compose context: %s", event.Actor.Attributes["com.docker.compose.project.working_dir"])
+		msg_builder.WriteString("\nDocker compose context: " + event.Actor.Attributes["com.docker.compose.project.working_dir"])
 	}
 	if len(event.Actor.Attributes["com.docker.compose.service"]) > 0 {
-		message += fmt.Sprintf("\nDocker compose service: %s", event.Actor.Attributes["com.docker.compose.service"])
+		msg_builder.WriteString("\nDocker compose service: " + event.Actor.Attributes["com.docker.compose.service"])
 	}
 
+	// Build message
+	message := msg_builder.String()
+
+	// Log message
 	log.Info(message)
+
 	// send notifications to various reporters
 	// function will finish when all reporters finished
 	sendNotifications(message, title)
