@@ -15,3 +15,7 @@ RUN adduser $USERNAME -s /bin/sh -D -u $USER_UID $USER_GID && \
     chmod 0440 /etc/sudoers.d/$USERNAME
 
 USER $USERNAME
+
+RUN go install -v golang.org/x/tools/gopls@latest
+RUN go install -v github.com/go-delve/delve/cmd/dlv@latest
+RUN go install -v honnef.co/go/tools/cmd/staticcheck@latest
