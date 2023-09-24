@@ -1,4 +1,4 @@
-From golang:1.21-alpine3.18
+FROM golang:1.21-alpine3.18
 RUN apk add --no-cache \
                 git \
                 nano\
