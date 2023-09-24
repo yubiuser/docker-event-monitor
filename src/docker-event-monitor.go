@@ -91,8 +91,42 @@ func init() {
 func main() {
 
 	log.Info("Starting docker event monitor")
+	timestamp := time.Now()
 
+	startup_message := buildStartupMessage(timestamp)
+	sendNotifications(timestamp, startup_message, "Starting docker event monitor")
+	log.Info(startup_message)
+
+	filterArgs := filters.NewArgs()
+	for key, values := range glb_arguments.Filter {
+		for _, value := range values {
+			filterArgs.Add(key, value)
+		}
+	}
+	log.Debugf("filterArgs = %v", filterArgs)
+
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// receives events from the channel
+	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filterArgs})
+
+	for {
+		select {
+		case err := <-errs:
+			log.Fatal(err)
+		case event := <-event_chan:
+			processEvent(&event)
+		}
+	}
+}
+
+func buildStartupMessage(timestamp time.Time) string {
 	var startup_message_builder strings.Builder
+
+	startup_message_builder.WriteString("Docker event monitor started at " + timestamp.Format(time.RFC1123Z) + "\n")
 
 	if glb_arguments.Pushover {
 		startup_message_builder.WriteString("Notify via Pushover, using API Token " + glb_arguments.PushoverAPIToken + " and user key " + glb_arguments.PushoverUserKey)
@@ -119,35 +153,7 @@ func main() {
 
 	startup_message_builder.WriteString("\nLog level: " + glb_arguments.LogLevel)
 
-	startup_message := startup_message_builder.String()
-	log.Info(startup_message)
-	timestamp := time.Now()
-	sendNotifications(timestamp, timestamp.Format(time.RFC1123Z), "Starting docker event monitor")
-
-	filterArgs := filters.NewArgs()
-	for key, values := range glb_arguments.Filter {
-		for _, value := range values {
-			filterArgs.Add(key, value)
-		}
-	}
-	log.Debugf("filterArgs = %v", filterArgs)
-
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// receives events from the channel
-	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filterArgs})
-
-	for {
-		select {
-		case err := <-errs:
-			log.Fatal(err)
-		case event := <-event_chan:
-			processEvent(&event)
-		}
-	}
+	return startup_message_builder.String()
 }
 
 func sendNotifications(timestamp time.Time, message string, title string) {
@@ -189,7 +195,7 @@ func sendNotifications(timestamp time.Time, message string, title string) {
 
 }
 
-func BuildMessage(timestamp time.Time, from string, to []string, subject string, body string) string {
+func buildEMail(timestamp time.Time, from string, to []string, subject string, body string) string {
 	var msg strings.Builder
 	msg.WriteString("From: " + from + "\r\n")
 	msg.WriteString("To: " + strings.Join(to, ";") + "\r\n")
@@ -215,7 +221,7 @@ func sendMail(timestamp time.Time, message string, title string) {
 	subject := title
 	body := message
 
-	mail := BuildMessage(timestamp, from, to, subject, body)
+	mail := buildEMail(timestamp, from, to, subject, body)
 
 	auth := smtp.PlainAuth("", username, password, host)
 
