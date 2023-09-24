@@ -121,7 +121,8 @@ func main() {
 
 	startup_message := startup_message_builder.String()
 	log.Info(startup_message)
-	sendNotifications(startup_message, "Starting docker event monitor")
+	timestamp := time.Now()
+	sendNotifications(timestamp, timestamp.Format(time.RFC1123Z), "Starting docker event monitor")
 
 	filterArgs := filters.NewArgs()
 	for key, values := range glb_arguments.Filter {
@@ -149,7 +150,7 @@ func main() {
 	}
 }
 
-func sendNotifications(message, title string) {
+func sendNotifications(timestamp time.Time, message string, title string) {
 	// Sending messages to different services as goroutines concurrently
 	// Adding a wait group here to delay execution until all functions return,
 	// otherwise delaying in processEvent() would not make any sense
@@ -181,25 +182,25 @@ func sendNotifications(message, title string) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sendMail(message, title)
+			sendMail(timestamp, message, title)
 		}()
 	}
 	wg.Wait()
 
 }
 
-func BuildMessage(from string, to []string, subject, body string) string {
+func BuildMessage(timestamp time.Time, from string, to []string, subject string, body string) string {
 	var msg strings.Builder
 	msg.WriteString("From: " + from + "\r\n")
 	msg.WriteString("To: " + strings.Join(to, ";") + "\r\n")
-	msg.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
+	msg.WriteString("Date: " + timestamp.Format(time.RFC1123Z) + "\r\n")
 	msg.WriteString("Subject: " + subject + "\r\n")
 	msg.WriteString("\r\n" + body + "\r\n")
 
 	return msg.String()
 }
 
-func sendMail(message, title string) {
+func sendMail(timestamp time.Time, message string, title string) {
 
 	from := glb_arguments.MailFrom
 	to := []string{glb_arguments.MailTo}
@@ -213,7 +214,7 @@ func sendMail(message, title string) {
 	subject := title
 	body := message
 
-	mail := BuildMessage(from, to, subject, body)
+	mail := BuildMessage(timestamp, from, to, subject, body)
 
 	auth := smtp.PlainAuth("", username, password, host)
 
@@ -224,7 +225,7 @@ func sendMail(message, title string) {
 	}
 }
 
-func sendGotify(message, title string) {
+func sendGotify(message string, title string) {
 
 	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
@@ -256,7 +257,7 @@ func sendGotify(message, title string) {
 
 }
 
-func sendPushover(message, title string) {
+func sendPushover(message string, title string) {
 	// Create a new pushover app with an API token
 	app := pushover.New(glb_arguments.PushoverAPIToken)
 
@@ -343,6 +344,10 @@ func processEvent(event *events.Message) {
 	mid := mid_builder.String()
 	msg_builder.WriteString(title + mid)
 
+	// Get event timestamp
+	timestamp := time.Unix(event.Time, 0)
+	msg_builder.WriteString("\nTime: " + timestamp.Format(time.RFC1123Z))
+
 	// Append possible docker compose context
 	if len(event.Actor.Attributes["com.docker.compose.project.working_dir"]) > 0 {
 		msg_builder.WriteString("\nDocker compose context: " + event.Actor.Attributes["com.docker.compose.project.working_dir"])
@@ -359,7 +364,7 @@ func processEvent(event *events.Message) {
 
 	// send notifications to various reporters
 	// function will finish when all reporters finished
-	sendNotifications(message, title)
+	sendNotifications(timestamp, message, title)
 
 	// block function until time (delay) triggers
 	// if sendNotifications is faster than the delay, function blocks here until delay is over
