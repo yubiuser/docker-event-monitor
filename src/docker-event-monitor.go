@@ -194,6 +194,7 @@ func BuildMessage(timestamp time.Time, from string, to []string, subject string,
 	msg.WriteString("From: " + from + "\r\n")
 	msg.WriteString("To: " + strings.Join(to, ";") + "\r\n")
 	msg.WriteString("Date: " + timestamp.Format(time.RFC1123Z) + "\r\n")
+	msg.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	msg.WriteString("Subject: " + subject + "\r\n")
 	msg.WriteString("\r\n" + body + "\r\n")
 
