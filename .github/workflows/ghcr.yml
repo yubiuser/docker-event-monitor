@@ -73,6 +73,7 @@ jobs:
 
   merge:
     runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
     permissions:
       contents: read
       packages: write
@@ -100,8 +101,8 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha, enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=ref,event=pr, enable=${{ $GITHUB_HEAD_REF != 'developement' }}
-            type=raw , event=pr, value=developemnt,enable=${{ $GITHUB_HEAD_REF == 'developement' }}
+            type=ref,event=pr, enable=${{ GITHUB_HEAD_REF != 'developement' }}
+            type=raw , event=pr, value=developemnt,enable=${{ GITHUB_HEAD_REF == 'developement' }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3.0.0
         with:
