@@ -60,7 +60,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ env.github.event.pull_request.head.repo.full_name == github.repository }}
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
@@ -76,7 +76,9 @@ jobs:
 
   merge:
     runs-on: ubuntu-latest
-    if: github.actor != 'dependabot[bot]'
+    if: |
+      github.actor != 'dependabot[bot]'
+      && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
     permissions:
       contents: read
       packages: write
