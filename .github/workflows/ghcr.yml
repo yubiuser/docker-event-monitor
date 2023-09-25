@@ -13,11 +13,35 @@ env:
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      fork_pr: ${{ steps.fork.outputs.FORK_PR }}
+    steps:
+      - name: Prepare
+        run: |
+          echo "${{ github.event.pull_request.head.repo.full_name }}"
+          echo "${{ github.repository }}"
+      - name: Set fork env
+        id: fork
+        run: |
+          if ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }};then
+            echo "FORK_PR=true" >> $GITHUB_OUTPUT
+          else
+            echo "FORK_PR=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get fork env
+        run: |
+          echo "FORK_PR is set to: ${{ steps.fork.outputs.FORK_PR }}"
+
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    needs:
+      - setup
     strategy:
       matrix:
         platform:
@@ -60,7 +84,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ env.github.event.pull_request.head.repo.full_name == github.repository }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ needs.setup.outputs.fork_pr == 'false' }}
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
@@ -78,7 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.actor != 'dependabot[bot]'
-      && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
+      && ${{ needs.setup.outputs.fork_pr == 'false' }}
     permissions:
       contents: read
       packages: write
