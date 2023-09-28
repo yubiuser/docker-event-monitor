@@ -2,18 +2,49 @@ name: Remove unused images from registry
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
   pull_request:
     types: [closed]
 
 env:
-  REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+  PACKAGE_NAME: docker-event-monitor
 
 jobs:
-  Delete untagged images:
+  Delete_PR_image:
+    if: |
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       packages: write
+    steps:
+      - name: Get image ID of PR
+        id: version
+        run: |
+          curl -sSL \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          https://api.github.com/users/${{ github.repository_owner }}/packages/container/${{ env.PACKAGE_NAME }}/versions >> containerMeta.json ;
+          echo "VERSION_ID=$(jq -r '.[] | select(.metadata.container.tags[] == "pr-${{ github.event.pull_request.number }}").id' containerMeta.json)" >> "$GITHUB_ENV" ;
+
+      - name: Delete PR image
+        uses: actions/delete-package-versions@v4.1.1
+        if: ${{ env.VERSION_ID!= '' }}
+        with:
+          package-version-ids: ${{ env.VERSION_ID }}
+          package-type: container
+          package-name: ${{ env.PACKAGE_NAME }}
+
+  Delete_untagged_images:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    if: |
+      github.event_name == 'workflow_dispatch'
+      || github.event_name == 'schedule'
+      || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     steps:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3.0.0
@@ -28,6 +59,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository_owner: ${{ github.repository_owner }}
           repository: ${{ github.repository }}
+          package_name: ${{ env.PACKAGE_NAME }}
           untagged_only: true
           owner_type: user
           except_untagged_multiplatform: true

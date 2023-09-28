@@ -8,7 +8,6 @@
 		"vscode": {
 			"settings": {},
 			"extensions": [
-				"ms-vscode.go",
 				"eamodio.gitlens",
 				"EditorConfig.EditorConfig",
 				"golang.Go"
