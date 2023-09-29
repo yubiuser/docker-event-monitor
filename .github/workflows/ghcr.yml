@@ -19,7 +19,7 @@ jobs:
       contents: read
       packages: write
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         platform:
           - linux/amd64
@@ -85,8 +85,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      image_version: ${{ steps.export_version.outputs.version }}
     steps:
       - name: Download digests
         uses: actions/download-artifact@v3.0.2

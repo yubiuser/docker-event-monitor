@@ -10,7 +10,8 @@
 			"extensions": [
 				"eamodio.gitlens",
 				"EditorConfig.EditorConfig",
-				"golang.Go"
+				"golang.Go",
+        "github.vscode-github-actions"
 			]
 		}
 	},
