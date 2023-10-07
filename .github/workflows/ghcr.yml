@@ -61,7 +61,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' }}
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
@@ -81,7 +81,7 @@ jobs:
       - build
     if: |
       github.actor != 'dependabot[bot]'
-      && github.event.pull_request.head.repo.full_name == github.repository
+      && ( github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' )
     permissions:
       contents: read
       packages: write
