@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/smtp"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,44 +32,99 @@ type args struct {
 	Gotify           bool                `arg:"env:GOTIFY" default:"false" help:"Enable/Disable Gotify Notification (True/False)"`
 	GotifyURL        string              `arg:"env:GOTIFY_URL" help:"URL of your Gotify server"`
 	GotifyToken      string              `arg:"env:GOTIFY_TOKEN" help:"Gotify's App Token"`
+	Mail             bool                `arg:"env:MAIL" default:"false" help:"Enable/Disable Mail (SMTP) Notification (True/False)"`
+	MailFrom         string              `arg:"env:MAIL_FROM" help:"your.username@provider.com"`
+	MailTo           string              `arg:"env:MAIL_TO" help:"recipient@provider.com"`
+	MailUser         string              `arg:"env:MAIL_USER" help:"SMTP Username"`
+	MailPassword     string              `arg:"env:MAIL_PASSWORD" help:"SMTP Password"`
+	MailPort         int                 `arg:"env:MAIL_PORT" default:"587" help:"SMTP Port"`
+	MailHost         string              `arg:"env:MAIL_HOST" help:"SMTP Host"`
 	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter           map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
+	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
+}
+
+// hold the supplied run-time arguments globally
+var glb_arguments args
+
+func init() {
+	parseArgs()
+
+	configureLogger(glb_arguments.LogLevel)
+
+	if glb_arguments.Pushover {
+		if len(glb_arguments.PushoverAPIToken) == 0 {
+			log.Fatalln("Pushover enabled. Pushover API token required!")
+		}
+		if len(glb_arguments.PushoverUserKey) == 0 {
+			log.Fatalln("Pushover enabled. Pushover user key required!")
+		}
+	}
+	if glb_arguments.Gotify {
+		if len(glb_arguments.GotifyURL) == 0 {
+			log.Fatalln("Gotify enabled. Gotify URL required!")
+		}
+		if len(glb_arguments.GotifyToken) == 0 {
+			log.Fatalln("Gotify enabled. Gotify APP token required!")
+		}
+	}
+	if glb_arguments.Mail {
+		if len(glb_arguments.MailUser) == 0 {
+			log.Fatalln("E-Mail notification enabled. SMTP username required!")
+		}
+		if len(glb_arguments.MailTo) == 0 {
+			log.Fatalln("E-Mail notification enabled. Recipient address required!")
+		}
+		if len(glb_arguments.MailFrom) == 0 {
+			glb_arguments.MailFrom = glb_arguments.MailUser
+		}
+		if len(glb_arguments.MailPassword) == 0 {
+			log.Fatalln("E-Mail notification enabled. SMTP Password required!")
+		}
+		if len(glb_arguments.MailHost) == 0 {
+			log.Fatalln("E-Mail notification enabled. SMTP host address required!")
+		}
+	}
 }
 
 func main() {
-	args := parseArgs()
-	var wg sync.WaitGroup
 
 	log.Infof("Starting docker event monitor")
 
-	if args.Pushover {
-		log.Infof("Using Pushover API Token %s", args.PushoverAPIToken)
-		log.Infof("Using Pushover User Key %s", args.PushoverUserKey)
+	if glb_arguments.Pushover {
+		log.Infof("Notify via Pushover, using API Token %s and user key %s", glb_arguments.PushoverAPIToken, glb_arguments.PushoverUserKey)
 	} else {
 		log.Info("Pushover notification disabled")
 	}
 
-	if args.Gotify {
-		log.Infof("Using Gotify APP Token %s", args.GotifyToken)
-		log.Infof("Using Gotify URL %s", args.GotifyURL)
+	if glb_arguments.Gotify {
+		log.Infof("Notify via Gotify, using URL %s and APP Token %s", glb_arguments.GotifyURL, glb_arguments.GotifyToken)
 	} else {
 		log.Info("Gotify notification disabled")
 	}
-	if args.Delay > 0 {
-		log.Infof("Using delay of %v", args.Delay)
+	if glb_arguments.Mail {
+		log.Infof("Notify via E-Mail from %s to %s using host %s and port %d", glb_arguments.MailFrom, glb_arguments.MailTo, glb_arguments.MailHost, glb_arguments.MailPort)
+	} else {
+		log.Info("E-Mail notification disabled")
+	}
+
+	if glb_arguments.Delay > 0 {
+		log.Infof("Using delay of %v", glb_arguments.Delay)
+	} else {
+		log.Info("Delay disabled")
 	}
 
 	filterArgs := filters.NewArgs()
-	for key, values := range args.Filter {
+	for key, values := range glb_arguments.Filter {
 		for _, value := range values {
 			filterArgs.Add(key, value)
 		}
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
 
-	sendNotifications(&args, time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor", &wg)
+	sendNotifications(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -82,41 +139,87 @@ func main() {
 		case err := <-errs:
 			log.Fatal(err)
 		case event := <-event_chan:
-			processEvent(&args, &event, &wg)
-			// Adding a small configurable delay here
-			// Sometimes events are pushed through the channel really quickly, but
-			// they arrive on the clients in wrong order (probably due to message delivery time)
-			// This affects mostly Pushover
-			// Consuming the events with a small delay solves the issue
-			if args.Delay > 0 {
-				time.Sleep(args.Delay)
-			}
+			processEvent(&event)
 		}
 	}
 }
 
-func sendNotifications(args *args, message, title string, wg *sync.WaitGroup) {
+func sendNotifications(message, title string) {
 	// Sending messages to different services as goroutines concurrently
 	// Adding a wait group here to delay execution until all functions return,
-	// otherwise the delay in main() would not use its full time
+	// otherwise delaying in processEvent() would not make any sense
 
-	if args.Pushover {
-		wg.Add(1)
-		go sendPushover(args, message, title, wg)
+	var wg sync.WaitGroup
+
+	// If there is a server tag, add it to the title
+	if len(glb_arguments.ServerTag) > 0 {
+		title = "[" + glb_arguments.ServerTag + "] " + title
 	}
 
-	if args.Gotify {
+	if glb_arguments.Pushover {
 		wg.Add(1)
-		go sendGotify(args, message, title, wg)
+		go func() {
+			defer wg.Done()
+			sendPushover(message, title)
+		}()
+	}
+
+	if glb_arguments.Gotify {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sendGotify(message, title)
+		}()
+	}
+
+	if glb_arguments.Mail {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sendMail(message, title)
+		}()
 	}
 	wg.Wait()
 
 }
 
-func sendGotify(args *args, message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func BuildMessage(from string, to []string, subject, body string) string {
+	msg := fmt.Sprintf("From: %s\r\n", from)
+	msg += fmt.Sprintf("To: %s\r\n", strings.Join(to, ";"))
+	msg += fmt.Sprintf("Subject: %s\r\n", subject)
+	msg += fmt.Sprintf("\r\n%s\r\n", body)
 
-	response, err := http.PostForm(args.GotifyURL+"/message?token="+args.GotifyToken,
+	return msg
+}
+
+func sendMail(message, title string) {
+
+	from := glb_arguments.MailFrom
+	to := []string{glb_arguments.MailTo}
+	username := glb_arguments.MailUser
+	password := glb_arguments.MailPassword
+
+	host := glb_arguments.MailHost
+	port := strconv.Itoa(glb_arguments.MailPort)
+	address := host + ":" + port
+
+	subject := title
+	body := message
+
+	mail := BuildMessage(from, to, subject, body)
+
+	auth := smtp.PlainAuth("", username, password, host)
+
+	err := smtp.SendMail(address, auth, from, to, []byte(mail))
+	if err != nil {
+		log.Error(err)
+		return
+	}
+}
+
+func sendGotify(message, title string) {
+
+	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
 	if err != nil {
 		log.Error(err)
@@ -146,13 +249,12 @@ func sendGotify(args *args, message, title string, wg *sync.WaitGroup) {
 
 }
 
-func sendPushover(args *args, message, title string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func sendPushover(message, title string) {
 	// Create a new pushover app with an API token
-	app := pushover.New(args.PushoverAPIToken)
+	app := pushover.New(glb_arguments.PushoverAPIToken)
 
 	// Create a new recipient (user key)
-	recipient := pushover.NewRecipient(args.PushoverUserKey)
+	recipient := pushover.NewRecipient(glb_arguments.PushoverUserKey)
 
 	// Create the message to send
 	pushmessage := pushover.NewMessageWithTitle(message, title)
@@ -179,16 +281,20 @@ func sendPushover(args *args, message, title string, wg *sync.WaitGroup) {
 
 }
 
-func processEvent(args *args, event *events.Message, wg *sync.WaitGroup) {
+func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
 	var message string
 
+	// Adding a small configurable delay here
+	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
+	// wrong order (probably due to message delivery time), e.g. Pushover is susceptible for this.
+	// Finishing this function not before a certain time before draining the next event from the event channel in main() solves the issue
+	timer := time.NewTimer(glb_arguments.Delay)
+
 	// if logging level is Debug, log the event
 	log.Debugf("%#v", event)
-
-	//event_timestamp := time.Unix(event.Time, 0).Format("02-01-2006 15:04:05")
 
 	//some events don't return Actor.ID or Actor.Attributes["image"]
 	var ID, image string
@@ -215,30 +321,32 @@ func processEvent(args *args, event *events.Message, wg *sync.WaitGroup) {
 	}
 
 	log.Info(message)
+	// send notifications to various reporters
+	// function will finish when all reporters finished
+	sendNotifications(message, "New Docker Event")
 
-	sendNotifications(args, message, "New Docker Event", wg)
+	// block function until time (delay) triggers
+	// if sendNotifications is faster than the delay, function blocks here until delay is over
+	// if sendNotifications takes longer than the delay, trigger already fired and no delay is added
+	<-timer.C
 
 }
 
-func parseArgs() args {
-	var args args
-	parser := arg.MustParse(&args)
+func parseArgs() {
+	parser := arg.MustParse(&glb_arguments)
 
-	configureLogger(args.LogLevel)
+	glb_arguments.Filter = make(map[string][]string)
 
-	args.Filter = make(map[string][]string)
-
-	for _, filter := range args.FilterStrings {
+	for _, filter := range glb_arguments.FilterStrings {
 		pos := strings.Index(filter, "=")
 		if pos == -1 {
 			parser.Fail("each filter should be of the form key=value")
 		}
 		key := filter[:pos]
 		val := filter[pos+1:]
-		args.Filter[key] = append(args.Filter[key], val)
+		glb_arguments.Filter[key] = append(glb_arguments.Filter[key], val)
 	}
 
-	return args
 }
 
 func configureLogger(LogLevel string) {
