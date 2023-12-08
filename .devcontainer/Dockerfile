@@ -1,4 +1,7 @@
-FROM golang:1.21-alpine3.18
+ARG alpine_version=3.19
+ARG golang_version=1.21
+
+FROM golang:${golang_version}-alpine${alpine_version}
 RUN apk add --no-cache \
                 git \
                 nano\
