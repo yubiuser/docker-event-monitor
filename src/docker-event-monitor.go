@@ -1,4 +1,4 @@
-package main
+  package main
 
 import (
 	"context"
@@ -301,7 +301,7 @@ func processEvent(event *events.Message) {
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
 	var msg_builder, title_builder, mid_builder strings.Builder
-	var ID, image, name, titleid string
+	var ActorID, ActorImage, ActorName, TitleID, title, mid string
 
 	// Adding a small configurable delay here
 	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
@@ -314,35 +314,35 @@ func processEvent(event *events.Message) {
 
 	//some events don't return Actor.ID or Actor.Attributes["image"]
 	if len(event.Actor.ID) > 0 {
-		ID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ID legth
+		ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
-		image = event.Actor.Attributes["image"]
+		ActorImage = event.Actor.Attributes["image"]
 	}
 	if len(event.Actor.Attributes["name"]) > 0 {
-		name = event.Actor.Attributes["name"]
+		ActorName = event.Actor.Attributes["name"]
 	}
 
 	// Check possible image and container name
-	// The order of the checks is important, because we want name rather than ID
+	// The order of the checks is important, because we want name rather than ActorID
 	// as identifier in the title
-	if len(ID) > 0 {
-		mid_builder.WriteString("\nID: " + ID)
-		titleid = ID
+	if len(ActorID) > 0 {
+		mid_builder.WriteString("\nID: " + ActorID)
+		TitleID = ActorID
 	}
-	if len(image) > 0 {
-		mid_builder.WriteString("\nImage: " + image)
-		// Not using image as possible title, because it's too long
+	if len(ActorImage) > 0 {
+		mid_builder.WriteString("\nImage: " + ActorImage)
+		// Not using ActorImage as possible title, because it's too long
 	}
-	if len(name) > 0 {
-		mid_builder.WriteString("\nName: " + name)
-		titleid = name
+	if len(ActorName) > 0 {
+		mid_builder.WriteString("\nName: " + ActorName)
+		TitleID = ActorName
 	}
 
-	// Build message
+	// Build title
 	title_builder.WriteString(cases.Title(language.English, cases.Compact).String(event.Type))
-	if len(titleid) > 0 {
-		title_builder.WriteString(" " + titleid)
+	if len(TitleID) > 0 {
+		title_builder.WriteString(" " + TitleID)
 	}
 	title_builder.WriteString(": " + event.Action)
 
