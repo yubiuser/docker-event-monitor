@@ -1,4 +1,4 @@
-  package main
+package main
 
 import (
 	"context"
@@ -300,8 +300,8 @@ func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
-	var msg_builder, title_builder, mid_builder strings.Builder
-	var ActorID, ActorImage, ActorName, TitleID, title, mid string
+	var msg_builder, title_builder strings.Builder
+	var ActorID, ActorImage, ActorName, TitleID string
 
 	// Adding a small configurable delay here
 	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
@@ -327,15 +327,15 @@ func processEvent(event *events.Message) {
 	// The order of the checks is important, because we want name rather than ActorID
 	// as identifier in the title
 	if len(ActorID) > 0 {
-		mid_builder.WriteString("\nID: " + ActorID)
+		msg_builder.WriteString("ID: " + ActorID + "\n")
 		TitleID = ActorID
 	}
 	if len(ActorImage) > 0 {
-		mid_builder.WriteString("\nImage: " + ActorImage)
+		msg_builder.WriteString("image: " + ActorImage + "\n")
 		// Not using ActorImage as possible title, because it's too long
 	}
 	if len(ActorName) > 0 {
-		mid_builder.WriteString("\nName: " + ActorName)
+		msg_builder.WriteString("Name: " + ActorName + "\n")
 		TitleID = ActorName
 	}
 
@@ -346,28 +346,24 @@ func processEvent(event *events.Message) {
 	}
 	title_builder.WriteString(": " + event.Action)
 
-	// Start message with title and id
-	title := title_builder.String()
-	mid := mid_builder.String()
-	msg_builder.WriteString(title + mid)
-
 	// Get event timestamp
 	timestamp := time.Unix(event.Time, 0)
-	msg_builder.WriteString("\nTime: " + timestamp.Format(time.RFC1123Z))
+	msg_builder.WriteString("Time: " + timestamp.Format(time.RFC1123Z) + "\n")
 
 	// Append possible docker compose context
 	if len(event.Actor.Attributes["com.docker.compose.project.working_dir"]) > 0 {
-		msg_builder.WriteString("\nDocker compose context: " + event.Actor.Attributes["com.docker.compose.project.working_dir"])
+		msg_builder.WriteString("Docker compose context: " + event.Actor.Attributes["com.docker.compose.project.working_dir"] + "\n")
 	}
 	if len(event.Actor.Attributes["com.docker.compose.service"]) > 0 {
-		msg_builder.WriteString("\nDocker compose service: " + event.Actor.Attributes["com.docker.compose.service"])
+		msg_builder.WriteString("Docker compose service: " + event.Actor.Attributes["com.docker.compose.service"] + "\n")
 	}
 
-	// Build message
-	message := msg_builder.String()
+	// Build message and title
+	title := title_builder.String()
+	message := strings.TrimRight(msg_builder.String(), "\n")
 
 	// Log message
-	log.Info(message)
+	log.Info(title + message)
 
 	// send notifications to various reporters
 	// function will finish when all reporters finished
