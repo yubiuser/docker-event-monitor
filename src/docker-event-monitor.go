@@ -312,15 +312,25 @@ func processEvent(event *events.Message) {
 	// if logging level is Debug, log the event
 	log.Debugf("%#v", event)
 
-	//some events don't return Actor.ID or Actor.Attributes["image"]
-	if len(event.Actor.ID) > 0 {
+	//some events don't return Actor.ID, Actor.Attributes["image"] or Actor.Attributes["name"]
+	if len(event.Actor.ID) > 0 && strings.HasPrefix(event.Actor.ID, "sha256:") {
 		ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
 		ActorImage = event.Actor.Attributes["image"]
+	} else {
+		// try to recover image name from org.opencontainers.image info
+		if len(event.Actor.Attributes["org.opencontainers.image.title"]) > 0 && len(event.Actor.Attributes["org.opencontainers.image.version"]) > 0 {
+			ActorImage = event.Actor.Attributes["org.opencontainers.image.title"] + ":" + event.Actor.Attributes["org.opencontainers.image.version"]
+		}
 	}
 	if len(event.Actor.Attributes["name"]) > 0 {
-		ActorName = event.Actor.Attributes["name"]
+		// in case the ActorName is only an hash
+		if strings.HasPrefix(event.Actor.Attributes["name"], "sha256:") {
+			ActorName = strings.TrimPrefix(event.Actor.Attributes["name"], "sha256:")[:8] //remove prefix + limit ActorName legth
+		} else {
+			ActorName = event.Actor.Attributes["name"]
+		}
 	}
 
 	// Check possible image and container name
