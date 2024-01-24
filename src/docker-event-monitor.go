@@ -373,7 +373,7 @@ func processEvent(event *events.Message) {
 	message := strings.TrimRight(msg_builder.String(), "\n")
 
 	// Log message
-	log.Info(title + message)
+	log.Info(title + " " + message)
 
 	// send notifications to various reporters
 	// function will finish when all reporters finished
