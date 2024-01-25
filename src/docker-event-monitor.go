@@ -341,7 +341,7 @@ func processEvent(event *events.Message) {
 		TitleID = ActorID
 	}
 	if len(ActorImage) > 0 {
-		msg_builder.WriteString("image: " + ActorImage + "\n")
+		msg_builder.WriteString("Image: " + ActorImage + "\n")
 		// Not using ActorImage as possible title, because it's too long
 	}
 	if len(ActorName) > 0 {
