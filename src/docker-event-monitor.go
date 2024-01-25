@@ -341,7 +341,7 @@ func processEvent(event *events.Message) {
 		TitleID = ActorID
 	}
 	if len(ActorImage) > 0 {
-		msg_builder.WriteString("image: " + ActorImage + "\n")
+		msg_builder.WriteString("Image: " + ActorImage + "\n")
 		// Not using ActorImage as possible title, because it's too long
 	}
 	if len(ActorName) > 0 {
@@ -350,11 +350,11 @@ func processEvent(event *events.Message) {
 	}
 
 	// Build title
-	title_builder.WriteString(cases.Title(language.English, cases.Compact).String(event.Type))
+	title_builder.WriteString(cases.Title(language.English, cases.Compact).String(string(event.Type)))
 	if len(TitleID) > 0 {
 		title_builder.WriteString(" " + TitleID)
 	}
-	title_builder.WriteString(": " + event.Action)
+	title_builder.WriteString(": " + string(event.Action))
 
 	// Get event timestamp
 	timestamp := time.Unix(event.Time, 0)
