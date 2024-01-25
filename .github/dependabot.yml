@@ -9,7 +9,7 @@ updates:
   open-pull-requests-limit: 10
   target-branch: development
 - package-ecosystem: gomod
-  directory: "/"
+  directory: "/src/"
   schedule:
     interval: weekly
     day: sunday
