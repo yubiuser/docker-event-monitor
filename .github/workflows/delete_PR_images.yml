@@ -27,7 +27,7 @@ jobs:
           echo "VERSION_ID=$(jq -r '.[] | select(.metadata.container.tags[] == "pr-${{ github.event.pull_request.number }}").id' containerMeta.json)" >> "$GITHUB_ENV" ;
 
       - name: Delete PR image
-        uses: actions/delete-package-versions@v4.1.1
+        uses: actions/delete-package-versions@v5.0.0
         if: ${{ env.VERSION_ID != '' }}
         with:
           package-version-ids: ${{ env.VERSION_ID }}
