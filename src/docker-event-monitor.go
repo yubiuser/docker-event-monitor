@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/smtp"
@@ -91,30 +90,12 @@ func init() {
 
 func main() {
 
-	log.Infof("Starting docker event monitor")
+	log.Info("Starting docker event monitor")
+	timestamp := time.Now()
 
-	if glb_arguments.Pushover {
-		log.Infof("Notify via Pushover, using API Token %s and user key %s", glb_arguments.PushoverAPIToken, glb_arguments.PushoverUserKey)
-	} else {
-		log.Info("Pushover notification disabled")
-	}
-
-	if glb_arguments.Gotify {
-		log.Infof("Notify via Gotify, using URL %s and APP Token %s", glb_arguments.GotifyURL, glb_arguments.GotifyToken)
-	} else {
-		log.Info("Gotify notification disabled")
-	}
-	if glb_arguments.Mail {
-		log.Infof("Notify via E-Mail from %s to %s using host %s and port %d", glb_arguments.MailFrom, glb_arguments.MailTo, glb_arguments.MailHost, glb_arguments.MailPort)
-	} else {
-		log.Info("E-Mail notification disabled")
-	}
-
-	if glb_arguments.Delay > 0 {
-		log.Infof("Using delay of %v", glb_arguments.Delay)
-	} else {
-		log.Info("Delay disabled")
-	}
+	startup_message := buildStartupMessage(timestamp)
+	sendNotifications(timestamp, startup_message, "Starting docker event monitor")
+	log.Info(startup_message)
 
 	filterArgs := filters.NewArgs()
 	for key, values := range glb_arguments.Filter {
@@ -123,8 +104,6 @@ func main() {
 		}
 	}
 	log.Debugf("filterArgs = %v", filterArgs)
-
-	sendNotifications(time.Now().Format("02-01-2006 15:04:05"), "Starting docker event monitor")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -144,7 +123,40 @@ func main() {
 	}
 }
 
-func sendNotifications(message, title string) {
+func buildStartupMessage(timestamp time.Time) string {
+	var startup_message_builder strings.Builder
+
+	startup_message_builder.WriteString("Docker event monitor started at " + timestamp.Format(time.RFC1123Z) + "\n")
+
+	if glb_arguments.Pushover {
+		startup_message_builder.WriteString("Notify via Pushover, using API Token " + glb_arguments.PushoverAPIToken + " and user key " + glb_arguments.PushoverUserKey)
+	} else {
+		startup_message_builder.WriteString("Pushover notification disabled")
+	}
+
+	if glb_arguments.Gotify {
+		startup_message_builder.WriteString("\nNotify via Gotify, using URL " + glb_arguments.GotifyURL + " and APP Token " + glb_arguments.GotifyToken)
+	} else {
+		startup_message_builder.WriteString("\nGotify notification disabled")
+	}
+	if glb_arguments.Mail {
+		startup_message_builder.WriteString("\nNotify via E-Mail from " + glb_arguments.MailFrom + " to " + glb_arguments.MailTo + " using host " + glb_arguments.MailHost + " and port " + strconv.Itoa(glb_arguments.MailPort))
+	} else {
+		startup_message_builder.WriteString("\nE-Mail notification disabled")
+	}
+
+	if glb_arguments.Delay > 0 {
+		startup_message_builder.WriteString("\nUsing delay of " + glb_arguments.Delay.String())
+	} else {
+		startup_message_builder.WriteString("\nDelay disabled")
+	}
+
+	startup_message_builder.WriteString("\nLog level: " + glb_arguments.LogLevel)
+
+	return startup_message_builder.String()
+}
+
+func sendNotifications(timestamp time.Time, message string, title string) {
 	// Sending messages to different services as goroutines concurrently
 	// Adding a wait group here to delay execution until all functions return,
 	// otherwise delaying in processEvent() would not make any sense
@@ -176,23 +188,26 @@ func sendNotifications(message, title string) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sendMail(message, title)
+			sendMail(timestamp, message, title)
 		}()
 	}
 	wg.Wait()
 
 }
 
-func BuildMessage(from string, to []string, subject, body string) string {
-	msg := fmt.Sprintf("From: %s\r\n", from)
-	msg += fmt.Sprintf("To: %s\r\n", strings.Join(to, ";"))
-	msg += fmt.Sprintf("Subject: %s\r\n", subject)
-	msg += fmt.Sprintf("\r\n%s\r\n", body)
+func buildEMail(timestamp time.Time, from string, to []string, subject string, body string) string {
+	var msg strings.Builder
+	msg.WriteString("From: " + from + "\r\n")
+	msg.WriteString("To: " + strings.Join(to, ";") + "\r\n")
+	msg.WriteString("Date: " + timestamp.Format(time.RFC1123Z) + "\r\n")
+	msg.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	msg.WriteString("Subject: " + subject + "\r\n")
+	msg.WriteString("\r\n" + body + "\r\n")
 
-	return msg
+	return msg.String()
 }
 
-func sendMail(message, title string) {
+func sendMail(timestamp time.Time, message string, title string) {
 
 	from := glb_arguments.MailFrom
 	to := []string{glb_arguments.MailTo}
@@ -206,7 +221,7 @@ func sendMail(message, title string) {
 	subject := title
 	body := message
 
-	mail := BuildMessage(from, to, subject, body)
+	mail := buildEMail(timestamp, from, to, subject, body)
 
 	auth := smtp.PlainAuth("", username, password, host)
 
@@ -217,7 +232,7 @@ func sendMail(message, title string) {
 	}
 }
 
-func sendGotify(message, title string) {
+func sendGotify(message string, title string) {
 
 	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
@@ -249,7 +264,7 @@ func sendGotify(message, title string) {
 
 }
 
-func sendPushover(message, title string) {
+func sendPushover(message string, title string) {
 	// Create a new pushover app with an API token
 	app := pushover.New(glb_arguments.PushoverAPIToken)
 
@@ -285,7 +300,8 @@ func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
-	var message string
+	var msg_builder, title_builder strings.Builder
+	var ActorID, ActorImage, ActorName, TitleID string
 
 	// Adding a small configurable delay here
 	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
@@ -296,34 +312,72 @@ func processEvent(event *events.Message) {
 	// if logging level is Debug, log the event
 	log.Debugf("%#v", event)
 
-	//some events don't return Actor.ID or Actor.Attributes["image"]
-	var ID, image string
-	if len(event.Actor.ID) > 0 {
-		ID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ID legth
+	//some events don't return Actor.ID, Actor.Attributes["image"] or Actor.Attributes["name"]
+	if len(event.Actor.ID) > 0 && strings.HasPrefix(event.Actor.ID, "sha256:") {
+		ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
-		image = event.Actor.Attributes["image"]
-	}
-
-	// Prepare message
-	if len(ID) == 0 {
-		if len(image) == 0 {
-			message = fmt.Sprintf("Object '%s' reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), event.Action)
-		} else {
-			message = fmt.Sprintf("Object '%s' from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), image, event.Action)
-		}
+		ActorImage = event.Actor.Attributes["image"]
 	} else {
-		if len(image) == 0 {
-			message = fmt.Sprintf("Object '%s' with ID %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, event.Action)
+		// try to recover image name from org.opencontainers.image info
+		if len(event.Actor.Attributes["org.opencontainers.image.title"]) > 0 && len(event.Actor.Attributes["org.opencontainers.image.version"]) > 0 {
+			ActorImage = event.Actor.Attributes["org.opencontainers.image.title"] + ":" + event.Actor.Attributes["org.opencontainers.image.version"]
+		}
+	}
+	if len(event.Actor.Attributes["name"]) > 0 {
+		// in case the ActorName is only an hash
+		if strings.HasPrefix(event.Actor.Attributes["name"], "sha256:") {
+			ActorName = strings.TrimPrefix(event.Actor.Attributes["name"], "sha256:")[:8] //remove prefix + limit ActorName legth
 		} else {
-			message = fmt.Sprintf("Object '%s' with ID %s from image %s reported: %s", cases.Title(language.English, cases.Compact).String(event.Type), ID, image, event.Action)
+			ActorName = event.Actor.Attributes["name"]
 		}
 	}
 
-	log.Info(message)
+	// Check possible image and container name
+	// The order of the checks is important, because we want name rather than ActorID
+	// as identifier in the title
+	if len(ActorID) > 0 {
+		msg_builder.WriteString("ID: " + ActorID + "\n")
+		TitleID = ActorID
+	}
+	if len(ActorImage) > 0 {
+		msg_builder.WriteString("image: " + ActorImage + "\n")
+		// Not using ActorImage as possible title, because it's too long
+	}
+	if len(ActorName) > 0 {
+		msg_builder.WriteString("Name: " + ActorName + "\n")
+		TitleID = ActorName
+	}
+
+	// Build title
+	title_builder.WriteString(cases.Title(language.English, cases.Compact).String(event.Type))
+	if len(TitleID) > 0 {
+		title_builder.WriteString(" " + TitleID)
+	}
+	title_builder.WriteString(": " + event.Action)
+
+	// Get event timestamp
+	timestamp := time.Unix(event.Time, 0)
+	msg_builder.WriteString("Time: " + timestamp.Format(time.RFC1123Z) + "\n")
+
+	// Append possible docker compose context
+	if len(event.Actor.Attributes["com.docker.compose.project.working_dir"]) > 0 {
+		msg_builder.WriteString("Docker compose context: " + event.Actor.Attributes["com.docker.compose.project.working_dir"] + "\n")
+	}
+	if len(event.Actor.Attributes["com.docker.compose.service"]) > 0 {
+		msg_builder.WriteString("Docker compose service: " + event.Actor.Attributes["com.docker.compose.service"] + "\n")
+	}
+
+	// Build message and title
+	title := title_builder.String()
+	message := strings.TrimRight(msg_builder.String(), "\n")
+
+	// Log message
+	log.Info(title + " " + message)
+
 	// send notifications to various reporters
 	// function will finish when all reporters finished
-	sendNotifications(message, "New Docker Event")
+	sendNotifications(timestamp, message, title)
 
 	// block function until time (delay) triggers
 	// if sendNotifications is faster than the delay, function blocks here until delay is over
