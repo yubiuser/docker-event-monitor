@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +20,6 @@ import (
 	"github.com/gregdel/pushover"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -46,6 +46,9 @@ type args struct {
 	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
 }
 
+// Creating a global logger
+var logger zerolog.Logger
+
 // hold the supplied run-time arguments globally
 var glb_arguments args
 
@@ -56,47 +59,73 @@ func init() {
 
 	if glb_arguments.Pushover {
 		if len(glb_arguments.PushoverAPIToken) == 0 {
-			log.Fatal().Msg("Pushover enabled. Pushover API token required!")
+			logger.Fatal().Msg("Pushover enabled. Pushover API token required!")
 		}
 		if len(glb_arguments.PushoverUserKey) == 0 {
-			log.Fatal().Msg("Pushover enabled. Pushover user key required!")
+			logger.Fatal().Msg("Pushover enabled. Pushover user key required!")
 		}
 	}
 	if glb_arguments.Gotify {
 		if len(glb_arguments.GotifyURL) == 0 {
-			log.Fatal().Msg("Gotify enabled. Gotify URL required!")
+			logger.Fatal().Msg("Gotify enabled. Gotify URL required!")
 		}
 		if len(glb_arguments.GotifyToken) == 0 {
-			log.Fatal().Msg("Gotify enabled. Gotify APP token required!")
+			logger.Fatal().Msg("Gotify enabled. Gotify APP token required!")
 		}
 	}
 	if glb_arguments.Mail {
 		if len(glb_arguments.MailUser) == 0 {
-			log.Fatal().Msg("E-Mail notification enabled. SMTP username required!")
+			logger.Fatal().Msg("E-Mail notification enabled. SMTP username required!")
 		}
 		if len(glb_arguments.MailTo) == 0 {
-			log.Fatal().Msg("E-Mail notification enabled. Recipient address required!")
+			logger.Fatal().Msg("E-Mail notification enabled. Recipient address required!")
 		}
 		if len(glb_arguments.MailFrom) == 0 {
 			glb_arguments.MailFrom = glb_arguments.MailUser
 		}
 		if len(glb_arguments.MailPassword) == 0 {
-			log.Fatal().Msg("E-Mail notification enabled. SMTP Password required!")
+			logger.Fatal().Msg("E-Mail notification enabled. SMTP Password required!")
 		}
 		if len(glb_arguments.MailHost) == 0 {
-			log.Fatal().Msg("E-Mail notification enabled. SMTP host address required!")
+			logger.Fatal().Msg("E-Mail notification enabled. SMTP host address required!")
 		}
 	}
 }
 
 func main() {
 
-	log.Info().Msg("Starting docker event monitor")
-	timestamp := time.Now()
+	logger.Info().
+		Dict("options", zerolog.Dict().
+			Dict("reporter", zerolog.Dict().
+				Dict("Pushover", zerolog.Dict().
+					Bool("enabled", glb_arguments.Pushover).
+					Str("PushoverAPIToken", glb_arguments.PushoverAPIToken).
+					Str("PushoverUserKey", glb_arguments.PushoverUserKey),
+				).
+				Dict("Gotify", zerolog.Dict().
+					Bool("enabled", glb_arguments.Gotify).
+					Str("GotifyURL", glb_arguments.GotifyURL).
+					Str("GotifyToken", glb_arguments.GotifyToken),
+				).
+				Dict("Mail", zerolog.Dict().
+					Bool("enabled", glb_arguments.Mail).
+					Str("MailFrom", glb_arguments.MailFrom).
+					Str("MailTo", glb_arguments.MailTo).
+					Str("MailHost", glb_arguments.MailHost).
+					Str("MailUser", glb_arguments.MailUser).
+					Int("Port", glb_arguments.MailPort),
+				),
+			).
+			Str("Delay", glb_arguments.Delay.String()).
+			Str("Loglevel", glb_arguments.LogLevel).
+			Str("ServerTag", glb_arguments.ServerTag).
+			Str("Filter", strings.Join(glb_arguments.FilterStrings, " ")),
+		).
+		Msg("Docker event monitor started")
 
+	timestamp := time.Now()
 	startup_message := buildStartupMessage(timestamp)
 	sendNotifications(timestamp, startup_message, "Starting docker event monitor")
-	log.Info().Msg(startup_message)
 
 	filterArgs := filters.NewArgs()
 	for key, values := range glb_arguments.Filter {
@@ -104,11 +133,10 @@ func main() {
 			filterArgs.Add(key, value)
 		}
 	}
-	log.Debug().Msgf("filterArgs = %v", filterArgs)
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		log.Fatal().Err(err).Msg("")
+		logger.Fatal().Err(err).Msg("")
 	}
 
 	// receives events from the channel
@@ -117,7 +145,7 @@ func main() {
 	for {
 		select {
 		case err := <-errs:
-			log.Fatal().Err(err).Msg("")
+			logger.Fatal().Err(err).Msg("")
 		case event := <-event_chan:
 			processEvent(&event)
 		}
@@ -153,6 +181,12 @@ func buildStartupMessage(timestamp time.Time) string {
 	}
 
 	startup_message_builder.WriteString("\nLog level: " + glb_arguments.LogLevel)
+
+	if glb_arguments.ServerTag != "" {
+		startup_message_builder.WriteString("\nServerTag: " + glb_arguments.ServerTag)
+	} else {
+		startup_message_builder.WriteString("\nServerTag: none")
+	}
 
 	return startup_message_builder.String()
 }
@@ -228,7 +262,7 @@ func sendMail(timestamp time.Time, message string, title string) {
 
 	err := smtp.SendMail(address, auth, from, to, []byte(mail))
 	if err != nil {
-		log.Error().Err(err)
+		logger.Error().Err(err).Str("reporter", "Mail").Msg("")
 		return
 	}
 }
@@ -238,7 +272,7 @@ func sendGotify(message string, title string) {
 	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
 	if err != nil {
-		log.Error().Err(err)
+		logger.Error().Err(err).Str("reporter", "Gotify").Msg("")
 		return
 	}
 
@@ -248,19 +282,19 @@ func sendGotify(message string, title string) {
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		log.Error().Err(err)
+		logger.Error().Err(err).Str("reporter", "Gotify").Msg("")
 		return
 	}
 
-	log.Debug().Msgf("Gotify response statusCode: %d", statusCode)
-	log.Debug().Msgf("Gotify response body: %s", string(body))
+	logger.Debug().Str("reporter", "Gotify").Msgf("Gotify response statusCode: %d", statusCode)
+	logger.Debug().Str("reporter", "Gotify").Msgf("Gotify response body: %s", string(body))
 
 	// Log non successfull status codes
 	if statusCode == 200 {
-		log.Debug().Msgf("Gotify message delivered")
+		logger.Debug().Str("reporter", "Gotify").Msgf("Gotify message delivered")
 	} else {
-		log.Error().Msgf("Pushing gotify message failed.")
-		log.Error().Msgf("Gotify response body: %s", string(body))
+		logger.Error().Str("reporter", "Gotify").Msgf("Pushing gotify message failed.")
+		logger.Error().Str("reporter", "Gotify").Msgf("Gotify response body: %s", string(body))
 	}
 
 }
@@ -278,22 +312,22 @@ func sendPushover(message string, title string) {
 	// Send the message to the recipient
 	response, err := app.SendMessage(pushmessage, recipient)
 	if err != nil {
-		log.Error().Err(err).Msg("")
+		logger.Error().Err(err).Str("reporter", "Pushover").Msg("")
 		return
 	}
 	if response != nil {
-		log.Debug().Msgf("%s", response)
+		logger.Debug().Str("reporter", "Pushover").Msgf("%s", response)
 	}
 
 	if (*response).Status == 1 {
 		// Pushover returns 1 if the message request to the API was valid
 		// https://pushover.net/api#response
-		log.Debug().Msgf("Pushover message delivered")
+		logger.Debug().Str("reporter", "Pushover").Msgf("Pushover message delivered")
 		return
 	}
 
 	// if response Status !=1
-	log.Error().Msg("Pushover message not delivered")
+	logger.Error().Str("reporter", "Pushover").Msg("Pushover message not delivered")
 
 }
 
@@ -311,7 +345,7 @@ func processEvent(event *events.Message) {
 	timer := time.NewTimer(glb_arguments.Delay)
 
 	// if logging level is Debug, log the event
-	log.Debug().Msgf("%#v", event)
+	logger.Debug().Msgf("%#v", event)
 
 	//some events don't return Actor.ID, Actor.Attributes["image"] or Actor.Attributes["name"]
 	if len(event.Actor.ID) > 0 && strings.HasPrefix(event.Actor.ID, "sha256:") {
@@ -374,7 +408,15 @@ func processEvent(event *events.Message) {
 	message := strings.TrimRight(msg_builder.String(), "\n")
 
 	// Log message
-	log.Info().Msg(title + " " + message)
+	logger.Info().
+		Str("eventType", string(event.Type)).
+		Str("ActorID", ActorID).
+		Str("eventAction", string(event.Action)).
+		Str("ActorImage", ActorImage).
+		Str("ActorName", ActorName).
+		Str("DockerComposeContext", event.Actor.Attributes["com.docker.compose.project.working_dir"]).
+		Str("DockerComposeService", event.Actor.Attributes["com.docker.compose.service"]).
+		Msg(title)
 
 	// send notifications to various reporters
 	// function will finish when all reporters finished
@@ -408,9 +450,20 @@ func configureLogger(LogLevel string) {
 	// UNIX Time is faster and smaller than most timestamps
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
-	// Default levelis info, unless debug flag is present
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	// Change logging level when debug flag is set
 	if LogLevel == "debug" {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		logger = zerolog.New(os.Stderr).
+			Level(zerolog.DebugLevel).
+			With().
+			Timestamp().
+			Str("service", "docker event monitor").
+			Logger()
+	} else {
+		logger = zerolog.New(os.Stderr).
+			Level(zerolog.InfoLevel).
+			With().
+			Str("service", "docker event monitor").
+			Timestamp().
+			Logger()
 	}
 }
