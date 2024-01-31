@@ -134,10 +134,11 @@ func main() {
 		}
 	}
 
-	cli, err := client.NewClientWithOpts(client.FromEnv,client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("")
 	}
+	defer cli.Close()
 
 	// receives events from the channel
 	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filterArgs})
