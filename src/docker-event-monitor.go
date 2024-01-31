@@ -134,7 +134,7 @@ func main() {
 		}
 	}
 
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv,client.WithAPIVersionNegotiation())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("")
 	}
