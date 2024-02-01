@@ -1,4 +1,7 @@
-From golang:1.21-alpine3.18
+ARG alpine_version=3.19
+ARG golang_version=1.21
+
+FROM golang:${golang_version}-alpine${alpine_version}
 RUN apk add --no-cache \
                 git \
                 nano\
@@ -15,3 +18,7 @@ RUN adduser $USERNAME -s /bin/sh -D -u $USER_UID $USER_GID && \
     chmod 0440 /etc/sudoers.d/$USERNAME
 
 USER $USERNAME
+
+RUN go install -v golang.org/x/tools/gopls@latest
+RUN go install -v github.com/go-delve/delve/cmd/dlv@latest
+RUN go install -v honnef.co/go/tools/cmd/staticcheck@latest
