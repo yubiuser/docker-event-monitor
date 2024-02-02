@@ -44,6 +44,7 @@ type args struct {
 	Filter           map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
 	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
+	Version          bool                `arg:"-v"`
 }
 
 // Creating a global logger
@@ -52,10 +53,30 @@ var logger zerolog.Logger
 // hold the supplied run-time arguments globally
 var glb_arguments args
 
+// version information
+var (
+	version = "n/a"
+	commit  = "n/a"
+	date    = "n/a"
+	gitdate = "n/a"
+	branch  = "n/a"
+)
+
 func init() {
 	parseArgs()
-
 	configureLogger(glb_arguments.LogLevel)
+
+	// if the -v flag was set, print version information and exit
+	if glb_arguments.Version {
+		logger.Info().
+			Str("Version", version).
+			Str("Branch", branch).
+			Str("Commit", commit).
+			Str("Compile_date", date).
+			Str("Git_date", gitdate).
+			Msg("Version Information")
+		os.Exit(0)
+	}
 
 	if glb_arguments.Pushover {
 		if len(glb_arguments.PushoverAPIToken) == 0 {
@@ -120,6 +141,13 @@ func main() {
 			Str("Loglevel", glb_arguments.LogLevel).
 			Str("ServerTag", glb_arguments.ServerTag).
 			Str("Filter", strings.Join(glb_arguments.FilterStrings, " ")),
+		).
+		Dict("version", zerolog.Dict().
+			Str("Version", version).
+			Str("Branch", branch).
+			Str("Commit", commit).
+			Str("Compile_date", date).
+			Str("Git_date", gitdate),
 		).
 		Msg("Docker event monitor started")
 
@@ -453,14 +481,14 @@ func configureLogger(LogLevel string) {
 
 	// Change logging level when debug flag is set
 	if LogLevel == "debug" {
-		logger = zerolog.New(os.Stderr).
+		logger = zerolog.New(os.Stdout).
 			Level(zerolog.DebugLevel).
 			With().
 			Timestamp().
 			Str("service", "docker event monitor").
 			Logger()
 	} else {
-		logger = zerolog.New(os.Stderr).
+		logger = zerolog.New(os.Stdout).
 			Level(zerolog.InfoLevel).
 			With().
 			Str("service", "docker event monitor").

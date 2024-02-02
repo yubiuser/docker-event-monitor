@@ -63,6 +63,7 @@ services:
       FILTER: 'event=start,event=stop,type=container'
       DELAY: '500ms'
       LOG_LEVEL: 'info'
+      SERVER_TAG: ''
 ```
 
 ### Build image locally

@@ -5,8 +5,7 @@ FROM golang:${golang_version}-alpine${alpine_version} as builder
 
 COPY /src /src
 WORKDIR /src
-RUN go mod download
-RUN CGO_ENABLED=0 go build -ldflags "-s -w"  docker-event-monitor.go
+RUN make build
 
 FROM scratch as deploy
 COPY --from=builder /src/docker-event-monitor docker-event-monitor
