@@ -2,6 +2,9 @@ ARG alpine_version=3.19
 ARG golang_version=1.21
 
 FROM golang:${golang_version}-alpine${alpine_version} as builder
+RUN apk add --no-cache \
+                git \
+                make
 
 COPY /src /src
 WORKDIR /src
