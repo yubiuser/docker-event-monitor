@@ -2,6 +2,12 @@ ARG alpine_version=3.19
 ARG golang_version=1.21
 
 FROM golang:${golang_version}-alpine${alpine_version} as builder
+ARG GIT_COMMIT
+ARG GIT_BRANCH
+ARG GIT_VERSION
+ARG GIT_DATE
+ARG GIT_TAG
+
 RUN apk add --no-cache \
                 git \
                 make
