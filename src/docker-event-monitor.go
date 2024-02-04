@@ -53,13 +53,13 @@ var logger zerolog.Logger
 // hold the supplied run-time arguments globally
 var glb_arguments args
 
-// version information
+// version information, are injected during build process
 var (
-	version = "n/a"
-	commit  = "n/a"
-	date    = "n/a"
-	gitdate = "n/a"
-	branch  = "n/a"
+	version string = "n/a"
+	commit  string = "n/a"
+	date    string
+	gitdate string
+	branch  string = "n/a"
 )
 
 func init() {
@@ -72,8 +72,8 @@ func init() {
 			Str("Version", version).
 			Str("Branch", branch).
 			Str("Commit", commit).
-			Str("Compile_date", date).
-			Str("Git_date", gitdate).
+			Time("Compile_date", stringToUnix(date)).
+			Time("Git_date", stringToUnix(gitdate)).
 			Msg("Version Information")
 		os.Exit(0)
 	}
@@ -146,8 +146,8 @@ func main() {
 			Str("Version", version).
 			Str("Branch", branch).
 			Str("Commit", commit).
-			Str("Compile_date", date).
-			Str("Git_date", gitdate),
+			Time("Compile_date", stringToUnix(date)).
+			Time("Git_date", stringToUnix(gitdate)),
 		).
 		Msg("Docker event monitor started")
 
@@ -476,8 +476,8 @@ func parseArgs() {
 }
 
 func configureLogger(LogLevel string) {
-	// UNIX Time is faster and smaller than most timestamps
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	// Configure time/timestamp format
+	zerolog.TimeFieldFormat = time.RFC1123Z
 
 	// Change logging level when debug flag is set
 	if LogLevel == "debug" {
@@ -495,4 +495,13 @@ func configureLogger(LogLevel string) {
 			Timestamp().
 			Logger()
 	}
+}
+
+func stringToUnix(str string) time.Time {
+	i, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("String to timestamp conversion failed")
+	}
+	tm := time.Unix(i, 0)
+	return tm
 }
