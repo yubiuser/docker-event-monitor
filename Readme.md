@@ -77,7 +77,7 @@ docker build -t docker-event-monitor:local .
 
 ### Build binary locally
 
-If you have a suitable `Go` environment set up, you can build the binary from `/src/`. For development, a `devcontainer` with a suitable `Dockerfile` is provided as well.
+If you have a suitable `Go` environment set up, you can build the binary from `/src/`. For development, a `devcontainer` with a suitable `Dockerfile` is provided as well. If you run `make build` instead of `go build`, `git` commit/branch/date information are injected into to binary.
 
 ### Environment variables and configuration
 

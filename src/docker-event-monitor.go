@@ -44,7 +44,7 @@ type args struct {
 	Filter           map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
 	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
-	Version          bool                `arg:"-v"`
+	Version          bool                `arg:"-v" help:"Print version information."`
 }
 
 // Creating a global logger
