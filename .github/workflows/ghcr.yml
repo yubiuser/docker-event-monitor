@@ -35,6 +35,24 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: "Calculate required variables"
+        id: variables
+        run: |
+          GIT_TAG=${{ github.event.release.tag_name }}
+          # If GIT_TAG is set then GIT BRANCH should be "main", else get it from the branch name
+          GIT_BRANCH=$([ -n "${GIT_TAG}" ] && echo "main" || git rev-parse --abbrev-ref HEAD)
+          GIT_VERSION=$(git --no-pager describe --tags --always --abbrev=8 --dirty)
+          GIT_COMMIT=$(git --no-pager describe --always --abbrev=8 --dirty)
+          GIT_DATE=$(git --no-pager show --date=short --format=%at --name-only | head -n 1)
+          echo "GIT_TAG=${GIT_TAG}" >> $GITHUB_ENV
+          echo "GIT_BRANCH=${GIT_BRANCH}" >> $GITHUB_ENV
+          echo "GIT_VERSION=${GIT_VERSION}" >> $GITHUB_ENV
+          echo "GIT_COMMIT=${GIT_COMMIT}" >> $GITHUB_ENV
+          echo "GIT_DATE=${GIT_DATE}" >> $GITHUB_ENV
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3.0.0
@@ -63,6 +81,12 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          build-args: |
+            GIT_TAG=${{ env.GIT_TAG }}
+            GIT_BRANCH=${{ env.GIT_BRANCH }}
+            GIT_VERSION=${{ env.GIT_VERSION }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
+            GIT_DATE=${{ env.GIT_DATE }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false

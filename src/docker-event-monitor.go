@@ -44,6 +44,7 @@ type args struct {
 	Filter           map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
 	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
+	Version          bool                `arg:"-v" help:"Print version information."`
 }
 
 // Creating a global logger
@@ -52,10 +53,30 @@ var logger zerolog.Logger
 // hold the supplied run-time arguments globally
 var glb_arguments args
 
+// version information, are injected during build process
+var (
+	version string = "n/a"
+	commit  string = "n/a"
+	date    string
+	gitdate string
+	branch  string = "n/a"
+)
+
 func init() {
 	parseArgs()
-
 	configureLogger(glb_arguments.LogLevel)
+
+	// if the -v flag was set, print version information and exit
+	if glb_arguments.Version {
+		logger.Info().
+			Str("Version", version).
+			Str("Branch", branch).
+			Str("Commit", commit).
+			Time("Compile_date", stringToUnix(date)).
+			Time("Git_date", stringToUnix(gitdate)).
+			Msg("Version Information")
+		os.Exit(0)
+	}
 
 	if glb_arguments.Pushover {
 		if len(glb_arguments.PushoverAPIToken) == 0 {
@@ -120,6 +141,13 @@ func main() {
 			Str("Loglevel", glb_arguments.LogLevel).
 			Str("ServerTag", glb_arguments.ServerTag).
 			Str("Filter", strings.Join(glb_arguments.FilterStrings, " ")),
+		).
+		Dict("version", zerolog.Dict().
+			Str("Version", version).
+			Str("Branch", branch).
+			Str("Commit", commit).
+			Time("Compile_date", stringToUnix(date)).
+			Time("Git_date", stringToUnix(gitdate)),
 		).
 		Msg("Docker event monitor started")
 
@@ -448,23 +476,32 @@ func parseArgs() {
 }
 
 func configureLogger(LogLevel string) {
-	// UNIX Time is faster and smaller than most timestamps
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	// Configure time/timestamp format
+	zerolog.TimeFieldFormat = time.RFC1123Z
 
 	// Change logging level when debug flag is set
 	if LogLevel == "debug" {
-		logger = zerolog.New(os.Stderr).
+		logger = zerolog.New(os.Stdout).
 			Level(zerolog.DebugLevel).
 			With().
 			Timestamp().
 			Str("service", "docker event monitor").
 			Logger()
 	} else {
-		logger = zerolog.New(os.Stderr).
+		logger = zerolog.New(os.Stdout).
 			Level(zerolog.InfoLevel).
 			With().
 			Str("service", "docker event monitor").
 			Timestamp().
 			Logger()
 	}
+}
+
+func stringToUnix(str string) time.Time {
+	i, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("String to timestamp conversion failed")
+	}
+	tm := time.Unix(i, 0)
+	return tm
 }
