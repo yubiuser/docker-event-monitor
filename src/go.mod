@@ -6,7 +6,7 @@ require (
 	github.com/alexflint/go-arg v1.4.3
 	github.com/docker/docker v25.0.2+incompatible
 	github.com/gregdel/pushover v1.3.0
-	github.com/rs/zerolog v1.31.0
+	github.com/rs/zerolog v1.32.0
 	golang.org/x/text v0.14.0
 )
 
