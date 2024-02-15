@@ -376,9 +376,12 @@ func processEvent(event *events.Message) {
 	// if logging level is Debug, log the event
 	logger.Debug().Msgf("%#v", event)
 
-	//some events don't return Actor.ID, Actor.Attributes["image"] or Actor.Attributes["name"]
-	if len(event.Actor.ID) > 0 && strings.HasPrefix(event.Actor.ID, "sha256:") {
-		ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
+	if len(event.Actor.ID) > 0 {
+		if strings.HasPrefix(event.Actor.ID, "sha256:") {
+			ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
+		} else {
+			ActorID = event.Actor.ID[:8] //limit ActorID legth
+		}
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
 		ActorImage = event.Actor.Attributes["image"]
