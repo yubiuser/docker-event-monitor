@@ -7,6 +7,7 @@ import (
 	"net/smtp"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,6 +43,8 @@ type args struct {
 	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter           map[string][]string `arg:"-"`
+	ExcludeStrings   []string            `arg:"env:EXCLUDE,--exclude,separate" help:"Exclude docker events using Docker syntax."`
+	Exclude          map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
 	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
 	Version          bool                `arg:"-v" help:"Print version information."`
@@ -57,8 +60,8 @@ var glb_arguments args
 var (
 	version string = "n/a"
 	commit  string = "n/a"
-	date    string
-	gitdate string
+	date    string = "0"
+	gitdate string = "0"
 	branch  string = "n/a"
 )
 
@@ -140,7 +143,8 @@ func main() {
 			Str("Delay", glb_arguments.Delay.String()).
 			Str("Loglevel", glb_arguments.LogLevel).
 			Str("ServerTag", glb_arguments.ServerTag).
-			Str("Filter", strings.Join(glb_arguments.FilterStrings, " ")),
+			Str("Filter", strings.Join(glb_arguments.FilterStrings, " ")).
+			Str("Exclude", strings.Join(glb_arguments.ExcludeStrings, " ")),
 		).
 		Dict("version", zerolog.Dict().
 			Str("Version", version).
@@ -176,6 +180,13 @@ func main() {
 		case err := <-errs:
 			logger.Fatal().Err(err).Msg("")
 		case event := <-event_chan:
+			// Check if event should be exlcuded from reporting
+			if len(glb_arguments.Exclude) > 0 {
+				logger.Info().Msg("Check for event exclusion")
+				if excludeEvent(&event) {
+					break //breaks out of the select and waits for the next event to arrive
+				}
+			}
 			processEvent(&event)
 		}
 	}
@@ -360,6 +371,32 @@ func sendPushover(message string, title string) {
 
 }
 
+func excludeEvent(event *events.Message) bool {
+
+	// getting the values of the events struct
+	// 'indirect' is needed as event is a pointer and
+	// the fields need to be derefrerenced
+	v := reflect.Indirect(reflect.ValueOf(event))
+
+	// iterate over all exclude key=value combinations and check
+	// if they match a key=value combination with the event message struct
+	for key, values := range glb_arguments.Exclude {
+		for _, value := range values {
+
+			// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
+			// special, dynamic, syntax
+			// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
+			if strings.HasPrefix(v.FieldByName(key).String(), value) {
+				logger.Info().Msg("Event excluded)
+				return true
+			}
+		}
+	}
+
+	return false
+
+}
+
 func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
@@ -464,6 +501,7 @@ func processEvent(event *events.Message) {
 func parseArgs() {
 	parser := arg.MustParse(&glb_arguments)
 
+	// Parse (include) filter
 	glb_arguments.Filter = make(map[string][]string)
 
 	for _, filter := range glb_arguments.FilterStrings {
@@ -474,6 +512,19 @@ func parseArgs() {
 		key := filter[:pos]
 		val := filter[pos+1:]
 		glb_arguments.Filter[key] = append(glb_arguments.Filter[key], val)
+	}
+
+	// Parse exclude filters
+	glb_arguments.Exclude = make(map[string][]string)
+
+	for _, exclude := range glb_arguments.ExcludeStrings {
+		pos := strings.Index(exclude, "=")
+		if pos == -1 {
+			parser.Fail("each filter should be of the form key=value")
+		}
+		key := exclude[:pos]
+		val := exclude[pos+1:]
+		glb_arguments.Exclude[key] = append(glb_arguments.Exclude[key], val)
 	}
 
 }
@@ -501,6 +552,9 @@ func configureLogger(LogLevel string) {
 }
 
 func stringToUnix(str string) time.Time {
+	if len(str) == 0 {
+		str = "0"
+	}
 	i, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("String to timestamp conversion failed")
