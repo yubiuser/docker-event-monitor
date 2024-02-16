@@ -414,8 +414,11 @@ func excludeEvent(event events.Message) bool {
 		}
 		if fieldExists {
 			// key matched, check if any value matches
-			for _, value := range values {
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Exclusion key \"%s\" matched, checking values", key)
 
+				for _, value := range values {
 				// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
 				// special, dynamic, syntax
 				// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
@@ -429,6 +432,11 @@ func excludeEvent(event events.Message) bool {
 			logger.Debug().
 				Str("ActorID", ActorID).
 				Msgf("Exclusion key \"%s\" matched, but values did not match", key)
+		} else {
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Exclusion key \"%s\" did not match", key)
+
 		}
 	}
 	logger.Debug().
