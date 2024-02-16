@@ -233,6 +233,18 @@ func buildStartupMessage(timestamp time.Time) string {
 		startup_message_builder.WriteString("\nServerTag: none")
 	}
 
+	if len(glb_arguments.FilterStrings) > 0 {
+		startup_message_builder.WriteString("\nFilterStrings: " + strings.Join(glb_arguments.FilterStrings, " "))
+	} else {
+		startup_message_builder.WriteString("\nFilterStrings: none")
+	}
+
+	if len(glb_arguments.ExcludeStrings) > 0 {
+		startup_message_builder.WriteString("\nExcludeStrings: " + strings.Join(glb_arguments.ExcludeStrings, " "))
+	} else {
+		startup_message_builder.WriteString("\nExcludeStrings: none")
+	}
+
 	return startup_message_builder.String()
 }
 
