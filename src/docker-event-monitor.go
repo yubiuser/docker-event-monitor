@@ -24,6 +24,8 @@ import (
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/oleiade/reflections"
 )
 
 type args struct {
@@ -180,10 +182,13 @@ func main() {
 		case err := <-errs:
 			logger.Fatal().Err(err).Msg("")
 		case event := <-event_chan:
+			// if logging level is Debug, log the event
+			logger.Debug().Msgf("%#v", event)
+
 			// Check if event should be exlcuded from reporting
 			if len(glb_arguments.Exclude) > 0 {
-				logger.Info().Msg("Check for event exclusion")
-				if excludeEvent(&event) {
+				logger.Debug().Msg("Performing check for event exclusion")
+				if excludeEvent(event) {
 					break //breaks out of the select and waits for the next event to arrive
 				}
 			}
@@ -371,30 +376,53 @@ func sendPushover(message string, title string) {
 
 }
 
-func excludeEvent(event *events.Message) bool {
+func excludeEvent(event events.Message) bool {
+	// Checks if any of the exclusion criteria matches the event
 
-	// getting the values of the events struct
-	// 'indirect' is needed as event is a pointer and
-	// the fields need to be derefrerenced
-	v := reflect.Indirect(reflect.ValueOf(event))
-
-	// iterate over all exclude key=value combinations and check
-	// if they match a key=value combination with the event message struct
-	for key, values := range glb_arguments.Exclude {
-		for _, value := range values {
-
-			// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
-			// special, dynamic, syntax
-			// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
-			if strings.HasPrefix(v.FieldByName(key).String(), value) {
-				logger.Info().Msg("Event excluded)
-				return true
-			}
+	var ActorID string
+	if len(event.Actor.ID) > 0 {
+		if strings.HasPrefix(event.Actor.ID, "sha256:") {
+			ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
+		} else {
+			ActorID = event.Actor.ID[:8] //limit ActorID legth
 		}
 	}
 
-	return false
+	// getting the values of the events struct
+	v := reflect.ValueOf(event)
 
+	// first check if any exclusion key matches a key in the event message
+	for key, values := range glb_arguments.Exclude {
+		fieldExists, err := reflections.HasField(event, key)
+		if err != nil {
+			logger.Error().Err(err).
+				Str("ActorID", ActorID).
+				Str("Key", key).
+				Msg("Error while checking existence of event fields")
+		}
+		if fieldExists {
+			// key matched, check if any value matches
+			for _, value := range values {
+
+				// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
+				// special, dynamic, syntax
+				// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
+				if strings.HasPrefix(v.FieldByName(key).String(), value) {
+					logger.Debug().
+						Str("ActorID", ActorID).
+						Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
+					return true
+				}
+			}
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Exclusion key \"%s\" matched, but values did not match", key)
+		}
+	}
+	logger.Debug().
+		Str("ActorID", ActorID).
+		Msg("Exclusion settings didn't match, not excluding event")
+	return false
 }
 
 func processEvent(event *events.Message) {
@@ -409,9 +437,6 @@ func processEvent(event *events.Message) {
 	// wrong order (probably due to message delivery time), e.g. Pushover is susceptible for this.
 	// Finishing this function not before a certain time before draining the next event from the event channel in main() solves the issue
 	timer := time.NewTimer(glb_arguments.Delay)
-
-	// if logging level is Debug, log the event
-	logger.Debug().Msgf("%#v", event)
 
 	if len(event.Actor.ID) > 0 {
 		if strings.HasPrefix(event.Actor.ID, "sha256:") {
