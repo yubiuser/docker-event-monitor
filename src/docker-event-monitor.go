@@ -427,7 +427,7 @@ func excludeEvent(event events.Message) bool {
 				Str("ActorID", ActorID).
 				Msgf("Event's value for key \"%s\" is \"%s\"", key, eventValue)
 
-			//GetField retruns an interface which needs to be converted to string
+			//GetField returns an interface which needs to be converted to string
 			strEventValue := fmt.Sprintf("%v", eventValue)
 
 			for _, value := range values {
@@ -559,7 +559,7 @@ func processEvent(event *events.Message) {
 func parseArgs() {
 	parser := arg.MustParse(&glb_arguments)
 
-	// Parse (include) filter
+	// Parse (include) filters
 	glb_arguments.Filter = make(map[string][]string)
 
 	for _, filter := range glb_arguments.FilterStrings {
