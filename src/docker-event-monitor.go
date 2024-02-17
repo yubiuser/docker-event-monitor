@@ -407,7 +407,7 @@ func excludeEvent(event events.Message) bool {
 			logger.Error().Err(err).
 				Str("ActorID", ActorID).
 				Str("Key", key).
-				Msg("Error while checking existence of event fields")
+				Msg("Error while checking existence of event field")
 		}
 		if fieldExists {
 			// key matched, check if any value matches
@@ -415,7 +415,7 @@ func excludeEvent(event events.Message) bool {
 				Str("ActorID", ActorID).
 				Msgf("Exclusion key \"%s\" matched, checking values", key)
 
-			eventvalue, err := reflections.GetField(event, key)
+				eventValue, err := reflections.GetField(event, key)
 			if err != nil {
 				logger.Error().Err(err).
 					Str("ActorID", ActorID).
@@ -423,27 +423,19 @@ func excludeEvent(event events.Message) bool {
 					Msg("Error while getting event field's value")
 			}
 
-			var fieldType string
-			fieldType, err = reflections.GetFieldType(event, key)
-			if err != nil {
-				logger.Error().Err(err).
-					Str("ActorID", ActorID).
-					Str("Fieldtype", fieldType).
-					Msg("Error while getting event field's type")
-			}
-
 			logger.Debug().
 				Str("ActorID", ActorID).
-				Msgf("Event's value for key \"%s\" is \"%s\" and type is \"%s\"", key, eventvalue, fieldType)
+				Msgf("Event's value for key \"%s\" is \"%s\"", key, eventValue)
 
 			//GetField retruns an interface which needs to be converted to string
-			text := fmt.Sprintf("%v", eventvalue)
+			strEventValue := fmt.Sprintf("%v", eventValue)
+
 			for _, value := range values {
 				// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
 				// special, dynamic, syntax
 				// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
 
-				if strings.HasPrefix(text, value) {
+				if strings.HasPrefix(strEventValue, value) {
 					logger.Debug().
 						Str("ActorID", ActorID).
 						Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
@@ -588,7 +580,7 @@ func parseArgs() {
 		if pos == -1 {
 			parser.Fail("each filter should be of the form key=value")
 		}
-		//trim whitespaces and make first letter uppercase for key (to match event.Message key format)
+		//trim whitespaces and make first letter uppercase for key (to match events.Message key format)
 		key := cases.Title(language.English, cases.Compact).String(strings.TrimSpace(exclude[:pos]))
 		val := exclude[pos+1:]
 		glb_arguments.Exclude[key] = append(glb_arguments.Exclude[key], val)
