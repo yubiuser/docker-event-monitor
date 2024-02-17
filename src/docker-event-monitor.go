@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/smtp"
 	"net/url"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -401,8 +401,6 @@ func excludeEvent(event events.Message) bool {
 	}
 
 	// getting the values of the events struct
-	v := reflect.ValueOf(event)
-
 	// first check if any exclusion key matches a key in the event message
 	for key, values := range glb_arguments.Exclude {
 		fieldExists, err := reflections.HasField(event, key)
@@ -418,11 +416,35 @@ func excludeEvent(event events.Message) bool {
 				Str("ActorID", ActorID).
 				Msgf("Exclusion key \"%s\" matched, checking values", key)
 
-				for _, value := range values {
+			eventvalue, err := reflections.GetField(event, key)
+			if err != nil {
+				logger.Error().Err(err).
+					Str("ActorID", ActorID).
+					Str("Key", key).
+					Msg("Error while getting event field's value")
+			}
+
+			var fieldType string
+			fieldType, err = reflections.GetFieldType(event, key)
+			if err != nil {
+				logger.Error().Err(err).
+					Str("ActorID", ActorID).
+					Str("Fieldtype", fieldType).
+					Msg("Error while getting event field's type")
+			}
+
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Event's value for key \"%s\" is \"%s\" and type is \"%s\"", key, eventvalue, fieldType)
+
+			//GetField retruns an interface which needs to be converted to string
+			text := fmt.Sprintf("%v", eventvalue)
+			for _, value := range values {
 				// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
 				// special, dynamic, syntax
 				// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
-				if strings.HasPrefix(v.FieldByName(key).String(), value) {
+
+				if strings.HasPrefix(text, value) {
 					logger.Debug().
 						Str("ActorID", ActorID).
 						Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
