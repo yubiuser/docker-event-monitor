@@ -415,7 +415,7 @@ func excludeEvent(event events.Message) bool {
 				Str("ActorID", ActorID).
 				Msgf("Exclusion key \"%s\" matched, checking values", key)
 
-				eventValue, err := reflections.GetField(event, key)
+			eventValue, err := reflections.GetField(event, key)
 			if err != nil {
 				logger.Error().Err(err).
 					Str("ActorID", ActorID).
@@ -611,9 +611,6 @@ func configureLogger(LogLevel string) {
 }
 
 func stringToUnix(str string) time.Time {
-	if len(str) == 0 {
-		str = "0"
-	}
 	i, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("String to timestamp conversion failed")
