@@ -19,13 +19,12 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/gregdel/pushover"
+	"github.com/oleiade/reflections"
 
 	"github.com/rs/zerolog"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-
-	"github.com/oleiade/reflections"
 )
 
 type args struct {
@@ -589,7 +588,8 @@ func parseArgs() {
 		if pos == -1 {
 			parser.Fail("each filter should be of the form key=value")
 		}
-		key := exclude[:pos]
+		//trim whitespaces and make first letter uppercase for key (to match event.Message key format)
+		key := cases.Title(language.English, cases.Compact).String(strings.TrimSpace(exclude[:pos]))
 		val := exclude[pos+1:]
 		glb_arguments.Exclude[key] = append(glb_arguments.Exclude[key], val)
 	}
