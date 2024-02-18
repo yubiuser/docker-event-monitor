@@ -200,6 +200,7 @@ func buildStartupMessage(timestamp time.Time) string {
 	var startup_message_builder strings.Builder
 
 	startup_message_builder.WriteString("Docker event monitor started at " + timestamp.Format(time.RFC1123Z) + "\n")
+	startup_message_builder.WriteString("Docker event monitor version: " + version + "\n")
 
 	if glb_arguments.Pushover {
 		startup_message_builder.WriteString("Notify via Pushover, using API Token " + glb_arguments.PushoverAPIToken + " and user key " + glb_arguments.PushoverUserKey)
