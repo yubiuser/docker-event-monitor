@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 ARG alpine_version=3.19
 ARG golang_version=1.21
 
