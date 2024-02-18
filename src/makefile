@@ -12,11 +12,19 @@ ifdef GIT_TAG
 override GIT_VERSION = ${GIT_TAG}
 endif
 
-# in case 'git' or the repo is not available, GIT_DATE is set empty via the assignment above
-# this causes issue when doing the stringToUnix coversion during compilation
-# setting GIT_DATE to 0 explicitly mitigates the issue
+# in case 'git' or the repo is not available, GIT_XXX is set empty via the assignment above
+# so we set them explicitly
 ifeq ($(GIT_DATE),)
 GIT_DATE = 0
+endif
+ifeq ($(GIT_COMMIT),)
+GIT_COMMIT = "n/a"
+endif
+ifeq ($(GIT_BRANCH),)
+GIT_BRANCH = "n/a"
+endif
+ifeq ($(GIT_VERSION),)
+GIT_VERSION = "n/a"
 endif
 
 DATE = $(shell date +%s)
