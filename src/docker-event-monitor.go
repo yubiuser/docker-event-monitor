@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/smtp"
@@ -18,6 +19,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/gregdel/pushover"
+	"github.com/oleiade/reflections"
 
 	"github.com/rs/zerolog"
 
@@ -42,6 +44,8 @@ type args struct {
 	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter           map[string][]string `arg:"-"`
+	ExcludeStrings   []string            `arg:"env:EXCLUDE,--exclude,separate" help:"Exclude docker events using Docker syntax."`
+	Exclude          map[string][]string `arg:"-"`
 	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
 	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
 	Version          bool                `arg:"-v" help:"Print version information."`
@@ -57,8 +61,8 @@ var glb_arguments args
 var (
 	version string = "n/a"
 	commit  string = "n/a"
-	date    string
-	gitdate string
+	date    string = "0"
+	gitdate string = "0"
 	branch  string = "n/a"
 )
 
@@ -140,7 +144,8 @@ func main() {
 			Str("Delay", glb_arguments.Delay.String()).
 			Str("Loglevel", glb_arguments.LogLevel).
 			Str("ServerTag", glb_arguments.ServerTag).
-			Str("Filter", strings.Join(glb_arguments.FilterStrings, " ")),
+			Str("Filter", strings.Join(glb_arguments.FilterStrings, " ")).
+			Str("Exclude", strings.Join(glb_arguments.ExcludeStrings, " ")),
 		).
 		Dict("version", zerolog.Dict().
 			Str("Version", version).
@@ -176,6 +181,16 @@ func main() {
 		case err := <-errs:
 			logger.Fatal().Err(err).Msg("")
 		case event := <-event_chan:
+			// if logging level is Debug, log the event
+			logger.Debug().Msgf("%#v", event)
+
+			// Check if event should be exlcuded from reporting
+			if len(glb_arguments.Exclude) > 0 {
+				logger.Debug().Msg("Performing check for event exclusion")
+				if excludeEvent(event) {
+					break //breaks out of the select and waits for the next event to arrive
+				}
+			}
 			processEvent(&event)
 		}
 	}
@@ -185,6 +200,7 @@ func buildStartupMessage(timestamp time.Time) string {
 	var startup_message_builder strings.Builder
 
 	startup_message_builder.WriteString("Docker event monitor started at " + timestamp.Format(time.RFC1123Z) + "\n")
+	startup_message_builder.WriteString("Docker event monitor version: " + version + "\n")
 
 	if glb_arguments.Pushover {
 		startup_message_builder.WriteString("Notify via Pushover, using API Token " + glb_arguments.PushoverAPIToken + " and user key " + glb_arguments.PushoverUserKey)
@@ -215,6 +231,18 @@ func buildStartupMessage(timestamp time.Time) string {
 		startup_message_builder.WriteString("\nServerTag: " + glb_arguments.ServerTag)
 	} else {
 		startup_message_builder.WriteString("\nServerTag: none")
+	}
+
+	if len(glb_arguments.FilterStrings) > 0 {
+		startup_message_builder.WriteString("\nFilterStrings: " + strings.Join(glb_arguments.FilterStrings, " "))
+	} else {
+		startup_message_builder.WriteString("\nFilterStrings: none")
+	}
+
+	if len(glb_arguments.ExcludeStrings) > 0 {
+		startup_message_builder.WriteString("\nExcludeStrings: " + strings.Join(glb_arguments.ExcludeStrings, " "))
+	} else {
+		startup_message_builder.WriteString("\nExcludeStrings: none")
 	}
 
 	return startup_message_builder.String()
@@ -360,6 +388,77 @@ func sendPushover(message string, title string) {
 
 }
 
+func excludeEvent(event events.Message) bool {
+	// Checks if any of the exclusion criteria matches the event
+
+	var ActorID string
+	if len(event.Actor.ID) > 0 {
+		if strings.HasPrefix(event.Actor.ID, "sha256:") {
+			ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
+		} else {
+			ActorID = event.Actor.ID[:8] //limit ActorID legth
+		}
+	}
+
+	// getting the values of the events struct
+	// first check if any exclusion key matches a key in the event message
+	for key, values := range glb_arguments.Exclude {
+		fieldExists, err := reflections.HasField(event, key)
+		if err != nil {
+			logger.Error().Err(err).
+				Str("ActorID", ActorID).
+				Str("Key", key).
+				Msg("Error while checking existence of event field")
+		}
+		if fieldExists {
+			// key matched, check if any value matches
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Exclusion key \"%s\" matched, checking values", key)
+
+			eventValue, err := reflections.GetField(event, key)
+			if err != nil {
+				logger.Error().Err(err).
+					Str("ActorID", ActorID).
+					Str("Key", key).
+					Msg("Error while getting event field's value")
+			}
+
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Event's value for key \"%s\" is \"%s\"", key, eventValue)
+
+			//GetField returns an interface which needs to be converted to string
+			strEventValue := fmt.Sprintf("%v", eventValue)
+
+			for _, value := range values {
+				// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
+				// special, dynamic, syntax
+				// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
+
+				if strings.HasPrefix(strEventValue, value) {
+					logger.Debug().
+						Str("ActorID", ActorID).
+						Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
+					return true
+				}
+			}
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Exclusion key \"%s\" matched, but values did not match", key)
+		} else {
+			logger.Debug().
+				Str("ActorID", ActorID).
+				Msgf("Exclusion key \"%s\" did not match", key)
+
+		}
+	}
+	logger.Debug().
+		Str("ActorID", ActorID).
+		Msg("Exclusion settings didn't match, not excluding event")
+	return false
+}
+
 func processEvent(event *events.Message) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
@@ -373,12 +472,12 @@ func processEvent(event *events.Message) {
 	// Finishing this function not before a certain time before draining the next event from the event channel in main() solves the issue
 	timer := time.NewTimer(glb_arguments.Delay)
 
-	// if logging level is Debug, log the event
-	logger.Debug().Msgf("%#v", event)
-
-	//some events don't return Actor.ID, Actor.Attributes["image"] or Actor.Attributes["name"]
-	if len(event.Actor.ID) > 0 && strings.HasPrefix(event.Actor.ID, "sha256:") {
-		ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
+	if len(event.Actor.ID) > 0 {
+		if strings.HasPrefix(event.Actor.ID, "sha256:") {
+			ActorID = strings.TrimPrefix(event.Actor.ID, "sha256:")[:8] //remove prefix + limit ActorID legth
+		} else {
+			ActorID = event.Actor.ID[:8] //limit ActorID legth
+		}
 	}
 	if len(event.Actor.Attributes["image"]) > 0 {
 		ActorImage = event.Actor.Attributes["image"]
@@ -461,6 +560,7 @@ func processEvent(event *events.Message) {
 func parseArgs() {
 	parser := arg.MustParse(&glb_arguments)
 
+	// Parse (include) filters
 	glb_arguments.Filter = make(map[string][]string)
 
 	for _, filter := range glb_arguments.FilterStrings {
@@ -471,6 +571,20 @@ func parseArgs() {
 		key := filter[:pos]
 		val := filter[pos+1:]
 		glb_arguments.Filter[key] = append(glb_arguments.Filter[key], val)
+	}
+
+	// Parse exclude filters
+	glb_arguments.Exclude = make(map[string][]string)
+
+	for _, exclude := range glb_arguments.ExcludeStrings {
+		pos := strings.Index(exclude, "=")
+		if pos == -1 {
+			parser.Fail("each filter should be of the form key=value")
+		}
+		//trim whitespaces and make first letter uppercase for key (to match events.Message key format)
+		key := cases.Title(language.English, cases.Compact).String(strings.TrimSpace(exclude[:pos]))
+		val := exclude[pos+1:]
+		glb_arguments.Exclude[key] = append(glb_arguments.Exclude[key], val)
 	}
 
 }

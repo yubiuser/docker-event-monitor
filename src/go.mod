@@ -4,9 +4,10 @@ go 1.21
 
 require (
 	github.com/alexflint/go-arg v1.4.3
-	github.com/docker/docker v25.0.2+incompatible
+	github.com/docker/docker v25.0.3+incompatible
 	github.com/gregdel/pushover v1.3.0
-	github.com/rs/zerolog v1.31.0
+	github.com/oleiade/reflections v1.0.1
+	github.com/rs/zerolog v1.32.0
 	golang.org/x/text v0.14.0
 )
 
