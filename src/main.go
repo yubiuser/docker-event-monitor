@@ -3,10 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"net/smtp"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -18,7 +14,6 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/gregdel/pushover"
 	"github.com/oleiade/reflections"
 
 	"github.com/rs/zerolog"
@@ -284,107 +279,6 @@ func sendNotifications(timestamp time.Time, message string, title string) {
 		}()
 	}
 	wg.Wait()
-
-}
-
-func buildEMail(timestamp time.Time, from string, to []string, subject string, body string) string {
-	var msg strings.Builder
-	msg.WriteString("From: " + from + "\r\n")
-	msg.WriteString("To: " + strings.Join(to, ";") + "\r\n")
-	msg.WriteString("Date: " + timestamp.Format(time.RFC1123Z) + "\r\n")
-	msg.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	msg.WriteString("Subject: " + subject + "\r\n")
-	msg.WriteString("\r\n" + body + "\r\n")
-
-	return msg.String()
-}
-
-func sendMail(timestamp time.Time, message string, title string) {
-
-	from := glb_arguments.MailFrom
-	to := []string{glb_arguments.MailTo}
-	username := glb_arguments.MailUser
-	password := glb_arguments.MailPassword
-
-	host := glb_arguments.MailHost
-	port := strconv.Itoa(glb_arguments.MailPort)
-	address := host + ":" + port
-
-	subject := title
-	body := message
-
-	mail := buildEMail(timestamp, from, to, subject, body)
-
-	auth := smtp.PlainAuth("", username, password, host)
-
-	err := smtp.SendMail(address, auth, from, to, []byte(mail))
-	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Mail").Msg("")
-		return
-	}
-}
-
-func sendGotify(message string, title string) {
-
-	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
-		url.Values{"message": {message}, "title": {title}})
-	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Gotify").Msg("")
-		return
-	}
-
-	defer response.Body.Close()
-
-	statusCode := response.StatusCode
-
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Gotify").Msg("")
-		return
-	}
-
-	logger.Debug().Str("reporter", "Gotify").Msgf("Gotify response statusCode: %d", statusCode)
-	logger.Debug().Str("reporter", "Gotify").Msgf("Gotify response body: %s", string(body))
-
-	// Log non successfull status codes
-	if statusCode == 200 {
-		logger.Debug().Str("reporter", "Gotify").Msgf("Gotify message delivered")
-	} else {
-		logger.Error().Str("reporter", "Gotify").Msgf("Pushing gotify message failed.")
-		logger.Error().Str("reporter", "Gotify").Msgf("Gotify response body: %s", string(body))
-	}
-
-}
-
-func sendPushover(message string, title string) {
-	// Create a new pushover app with an API token
-	app := pushover.New(glb_arguments.PushoverAPIToken)
-
-	// Create a new recipient (user key)
-	recipient := pushover.NewRecipient(glb_arguments.PushoverUserKey)
-
-	// Create the message to send
-	pushmessage := pushover.NewMessageWithTitle(message, title)
-
-	// Send the message to the recipient
-	response, err := app.SendMessage(pushmessage, recipient)
-	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Pushover").Msg("")
-		return
-	}
-	if response != nil {
-		logger.Debug().Str("reporter", "Pushover").Msgf("%s", response)
-	}
-
-	if (*response).Status == 1 {
-		// Pushover returns 1 if the message request to the API was valid
-		// https://pushover.net/api#response
-		logger.Debug().Str("reporter", "Pushover").Msgf("Pushover message delivered")
-		return
-	}
-
-	// if response Status !=1
-	logger.Error().Str("reporter", "Pushover").Msg("Pushover message not delivered")
 
 }
 
