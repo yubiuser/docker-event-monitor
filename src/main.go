@@ -303,6 +303,7 @@ func excludeEvent(event events.Message) bool {
 				Str("ActorID", ActorID).
 				Str("Key", key).
 				Msg("Error while checking existence of event field")
+				return false
 		}
 		if fieldExists {
 			// key matched, check if any value matches
@@ -316,6 +317,7 @@ func excludeEvent(event events.Message) bool {
 					Str("ActorID", ActorID).
 					Str("Key", key).
 					Msg("Error while getting event field's value")
+					return false
 			}
 
 			logger.Debug().
