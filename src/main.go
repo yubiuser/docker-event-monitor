@@ -177,8 +177,11 @@ func main() {
 		case err := <-errs:
 			logger.Fatal().Err(err).Msg("")
 		case event := <-event_chan:
-			// if logging level is Debug, log the event
-			logger.Debug().Msgf("%#v", event)
+			// if logging level is debug, log the event
+			if glb_arguments.LogLevel == "debug" {
+				logger.Info().
+					Interface("Event", event).Msg("")
+			}
 
 			// Check if event should be exlcuded from reporting
 			if len(glb_arguments.Exclude) > 0 {
