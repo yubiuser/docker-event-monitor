@@ -180,7 +180,7 @@ func main() {
 			// if logging level is debug, log the event
 			if glb_arguments.LogLevel == "debug" {
 				logger.Info().
-					Interface("Event", event).Msg("")
+					Interface("event", event).Msg("")
 			}
 
 			// Check if event should be exlcuded from reporting
