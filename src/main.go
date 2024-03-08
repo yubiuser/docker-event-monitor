@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -178,10 +176,8 @@ func main() {
 			logger.Fatal().Err(err).Msg("")
 		case event := <-event_chan:
 			// if logging level is debug, log the event
-			if glb_arguments.LogLevel == "debug" {
-				logger.Info().
-					Interface("event", event).Msg("")
-			}
+			logger.Debug().
+				Interface("event", event).Msg("")
 
 			// Check if event should be exlcuded from reporting
 			if len(glb_arguments.Exclude) > 0 {
@@ -321,15 +317,12 @@ func excludeEvent(event events.Message) bool {
 			Str("ActorID", ActorID).
 			Msgf("Event's value for key \"%s\" is \"%s\"", key, eventValue)
 
-		//eventValue is an interface which needs to be converted to string
-		strEventValue := fmt.Sprintf("%v", eventValue)
-
 		for _, value := range values {
 			// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
 			// special, dynamic, syntax
 			// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
 
-			if strings.HasPrefix(strEventValue, value) {
+			if strings.HasPrefix(eventValue, value) {
 				logger.Debug().
 					Str("ActorID", ActorID).
 					Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
@@ -466,7 +459,7 @@ func parseArgs() {
 		if pos == -1 {
 			parser.Fail("each filter should be of the form key=value")
 		}
-		//trim whitespaces and make first letter uppercase for key (to match events.Message key format)
+		//trim whitespaces
 		key := strings.TrimSpace(exclude[:pos])
 		val := exclude[pos+1:]
 		glb_arguments.Exclude[key] = append(glb_arguments.Exclude[key], val)
@@ -506,34 +499,44 @@ func stringToUnix(str string) time.Time {
 }
 
 // flatten a nested map, separating nested keys by dots
-func flattenMap(prefix string, m map[string]interface{}) map[string]interface{} {
-	flatMap := make(map[string]interface{})
+func flattenMap(prefix string, m map[string]interface{}) map[string]string {
+	flatMap := make(map[string]string)
 	for k, v := range m {
 		newKey := k
 		// separate nested keys by dot
 		if prefix != "" {
 			newKey = prefix + "." + k
 		}
-		// if the value is a map itself, transverse it recursivly
-		if reflect.TypeOf(v).Kind() == reflect.Map {
+		// if the value is a map/struct itself, transverse it recursivly
+		switch k {
+		case "Actor", "Attributes":
 			nestedMap := v.(map[string]interface{})
 			for nk, nv := range flattenMap(newKey, nestedMap) {
 				flatMap[nk] = nv
 			}
-		} else {
-			flatMap[newKey] = v
+		case "time", "timeNano":
+			flatMap[newKey] = string(v.(json.Number))
+		default:
+			flatMap[newKey] = v.(string)
 		}
 	}
 	return flatMap
 }
 
 // Convert struct to flat map by first converting it to a map (via JSON) and flatten it afterwards
-func structToFlatMap(s interface{}) map[string]interface{} {
+func structToFlatMap(s interface{}) map[string]string {
 	m := make(map[string]interface{})
 	b, err := json.Marshal(s)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Marshaling JSON failed")
 	}
-	json.Unmarshal(b, &m)
+
+	// Using a custom decoder to set 'UseNumber' which will preserver a string representation of
+	// time and timeNano instead of converting it to float64
+	decoder := json.NewDecoder(strings.NewReader(string(b)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&m); err != nil {
+		logger.Fatal().Err(err).Msg("Unmarshaling JSON failed")
+	}
 	return flattenMap("", m)
 }
