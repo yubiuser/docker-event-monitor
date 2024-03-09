@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"os"
 	"strconv"
 	"strings"
@@ -14,7 +14,6 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/oleiade/reflections"
 
 	"github.com/rs/zerolog"
 
@@ -176,8 +175,9 @@ func main() {
 		case err := <-errs:
 			logger.Fatal().Err(err).Msg("")
 		case event := <-event_chan:
-			// if logging level is Debug, log the event
-			logger.Debug().Msgf("%#v", event)
+			// if logging level is debug, log the event
+			logger.Debug().
+				Interface("event", event).Msg("")
 
 			// Check if event should be exlcuded from reporting
 			if len(glb_arguments.Exclude) > 0 {
@@ -294,64 +294,46 @@ func excludeEvent(event events.Message) bool {
 		}
 	}
 
-	// getting the values of the events struct
-	// first check if any exclusion key matches a key in the event message
+	// Convert the event (struct of type event.Message) to a flattend map
+	eventMap := structToFlatMap(event)
+
+	// Check for all exclude key -> value combinations if they match the event
 	for key, values := range glb_arguments.Exclude {
-		fieldExists, err := reflections.HasField(event, key)
-		if err != nil {
-			logger.Error().Err(err).
-				Str("ActorID", ActorID).
-				Str("Key", key).
-				Msg("Error while checking existence of event field")
-				return false
-		}
-		if fieldExists {
-			// key matched, check if any value matches
-			logger.Debug().
-				Str("ActorID", ActorID).
-				Msgf("Exclusion key \"%s\" matched, checking values", key)
+		eventValue, keyExist := eventMap[key]
 
-			eventValue, err := reflections.GetField(event, key)
-			if err != nil {
-				logger.Error().Err(err).
-					Str("ActorID", ActorID).
-					Str("Key", key).
-					Msg("Error while getting event field's value")
-					return false
-			}
-
-			logger.Debug().
-				Str("ActorID", ActorID).
-				Msgf("Event's value for key \"%s\" is \"%s\"", key, eventValue)
-
-			//GetField returns an interface which needs to be converted to string
-			strEventValue := fmt.Sprintf("%v", eventValue)
-
-			for _, value := range values {
-				// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
-				// special, dynamic, syntax
-				// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
-
-				if strings.HasPrefix(strEventValue, value) {
-					logger.Debug().
-						Str("ActorID", ActorID).
-						Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
-					return true
-				}
-			}
-			logger.Debug().
-				Str("ActorID", ActorID).
-				Msgf("Exclusion key \"%s\" matched, but values did not match", key)
-		} else {
+		// Check if the exclusion key exists in the eventMap
+		if !keyExist {
 			logger.Debug().
 				Str("ActorID", ActorID).
 				Msgf("Exclusion key \"%s\" did not match", key)
-
+			return false
 		}
+
+		logger.Debug().
+			Str("ActorID", ActorID).
+			Msgf("Exclusion key \"%s\" matched, checking values", key)
+
+		logger.Debug().
+			Str("ActorID", ActorID).
+			Msgf("Event's value for key \"%s\" is \"%s\"", key, eventValue)
+
+		for _, value := range values {
+			// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
+			// special, dynamic, syntax
+			// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
+
+			if strings.HasPrefix(eventValue, value) {
+				logger.Debug().
+					Str("ActorID", ActorID).
+					Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
+				return true
+			}
+		}
+		logger.Debug().
+			Str("ActorID", ActorID).
+			Msgf("Exclusion key \"%s\" matched, but values did not match", key)
 	}
-	logger.Debug().
-		Str("ActorID", ActorID).
-		Msg("Exclusion settings didn't match, not excluding event")
+
 	return false
 }
 
@@ -477,8 +459,8 @@ func parseArgs() {
 		if pos == -1 {
 			parser.Fail("each filter should be of the form key=value")
 		}
-		//trim whitespaces and make first letter uppercase for key (to match events.Message key format)
-		key := cases.Title(language.English, cases.Compact).String(strings.TrimSpace(exclude[:pos]))
+		//trim whitespaces
+		key := strings.TrimSpace(exclude[:pos])
 		val := exclude[pos+1:]
 		glb_arguments.Exclude[key] = append(glb_arguments.Exclude[key], val)
 	}
@@ -514,4 +496,47 @@ func stringToUnix(str string) time.Time {
 	}
 	tm := time.Unix(i, 0)
 	return tm
+}
+
+// flatten a nested map, separating nested keys by dots
+func flattenMap(prefix string, m map[string]interface{}) map[string]string {
+	flatMap := make(map[string]string)
+	for k, v := range m {
+		newKey := k
+		// separate nested keys by dot
+		if prefix != "" {
+			newKey = prefix + "." + k
+		}
+		// if the value is a map/struct itself, transverse it recursivly
+		switch k {
+		case "Actor", "Attributes":
+			nestedMap := v.(map[string]interface{})
+			for nk, nv := range flattenMap(newKey, nestedMap) {
+				flatMap[nk] = nv
+			}
+		case "time", "timeNano":
+			flatMap[newKey] = string(v.(json.Number))
+		default:
+			flatMap[newKey] = v.(string)
+		}
+	}
+	return flatMap
+}
+
+// Convert struct to flat map by first converting it to a map (via JSON) and flatten it afterwards
+func structToFlatMap(s interface{}) map[string]string {
+	m := make(map[string]interface{})
+	b, err := json.Marshal(s)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Marshaling JSON failed")
+	}
+
+	// Using a custom decoder to set 'UseNumber' which will preserver a string representation of
+	// time and timeNano instead of converting it to float64
+	decoder := json.NewDecoder(strings.NewReader(string(b)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&m); err != nil {
+		logger.Fatal().Err(err).Msg("Unmarshaling JSON failed")
+	}
+	return flattenMap("", m)
 }
