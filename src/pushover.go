@@ -22,7 +22,7 @@ func sendPushover(message string, title string) {
 		logger.Debug().Str("reporter", "Pushover").Msgf("%s", response)
 	}
 
-	if (*response).Status == 1 {
+	if response.Status == 1 {
 		// Pushover returns 1 if the message request to the API was valid
 		// https://pushover.net/api#response
 		logger.Debug().Str("reporter", "Pushover").Msgf("Pushover message delivered")
