@@ -15,7 +15,7 @@ func processEvent(event events.Message) {
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
 	var msg_builder, title_builder strings.Builder
-	var ActorID, ActorImage, ActorName, TitleID string
+	var ActorID, ActorImage, ActorName, TitleID, ActorImageVersion string
 
 	// Adding a small configurable delay here
 	// Sometimes events are pushed through the event channel really quickly, but they arrive on the notification clients in
@@ -23,9 +23,10 @@ func processEvent(event events.Message) {
 	// Finishing this function not before a certain time before draining the next event from the event channel in main() solves the issue
 	timer := time.NewTimer(glb_arguments.Delay)
 
-	ActorID = buildActorID(event)
-	ActorImage = buildActorImage(event)
-	ActorName = buildActorName(event)
+	ActorID = getActorID(event)
+	ActorImage = getActorImage(event)
+	ActorName = getActorName(event)
+	ActorImageVersion = getActorImageVersion(event)
 
 	// Check possible image and container name
 	// The order of the checks is important, because we want name rather than ActorID
@@ -38,6 +39,10 @@ func processEvent(event events.Message) {
 		msg_builder.WriteString("Image: " + ActorImage + "\n")
 		// Not using ActorImage as possible title, because it's too long
 	}
+	if len(ActorImageVersion) > 0 {
+		msg_builder.WriteString("Image version: " + ActorImageVersion + "\n")
+	}
+
 	if len(ActorName) > 0 {
 		msg_builder.WriteString("Name: " + ActorName + "\n")
 		TitleID = ActorName
@@ -72,6 +77,7 @@ func processEvent(event events.Message) {
 		Str("ActorID", ActorID).
 		Str("eventAction", string(event.Action)).
 		Str("ActorImage", ActorImage).
+		Str("ActorImageVersion", ActorImageVersion).
 		Str("ActorName", ActorName).
 		Str("DockerComposeContext", event.Actor.Attributes["com.docker.compose.project.working_dir"]).
 		Str("DockerComposeService", event.Actor.Attributes["com.docker.compose.service"]).
@@ -88,7 +94,7 @@ func processEvent(event events.Message) {
 
 }
 
-func buildActorID(event events.Message) string {
+func getActorID(event events.Message) string {
 	var ActorID string
 
 	if len(event.Actor.ID) > 0 {
@@ -101,7 +107,7 @@ func buildActorID(event events.Message) string {
 	return ActorID
 }
 
-func buildActorImage(event events.Message) string {
+func getActorImage(event events.Message) string {
 	var ActorImage string
 
 	if len(event.Actor.Attributes["image"]) > 0 {
@@ -115,7 +121,17 @@ func buildActorImage(event events.Message) string {
 	return ActorImage
 }
 
-func buildActorName(event events.Message) string {
+func getActorImageVersion(event events.Message) string {
+	var ActorImageVersion string
+
+	if len(event.Actor.Attributes["org.opencontainers.image.version"]) > 0 {
+		ActorImageVersion = event.Actor.Attributes["org.opencontainers.image.version"]
+	}
+	return ActorImageVersion
+
+}
+
+func getActorName(event events.Message) string {
 	var ActorName string
 
 	if len(event.Actor.Attributes["name"]) > 0 {
@@ -133,7 +149,7 @@ func buildActorName(event events.Message) string {
 func excludeEvent(event events.Message) bool {
 	// Checks if any of the exclusion criteria matches the event
 
-	ActorID := buildActorID(event)
+	ActorID := getActorID(event)
 
 	// Convert the event (struct of type event.Message) to a flattend map
 	eventMap := structToFlatMap(event)
