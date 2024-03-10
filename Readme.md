@@ -10,7 +10,8 @@ Monitor Docker events and send push notifications for each event.
 - Pushover notification
 - Gotify notification
 - E-Mail notification (SMTP)
-- Filter events
+- Mattermost notifications (via Incoming Webhooks)
+- Filter and exclude events
 
 ## Background
 
@@ -60,6 +61,10 @@ services:
       MAIL_PASSWORD: 'PASSWORD'
       MAIL_PORT: 587
       MAIL_HOST: 'smtp@provider.com'
+      MATTERMOST: false
+      MATTERMOST_URL: 'URL'
+      MATTERMOST_CHANNEL: 'Channel'
+      MATTERMOST_USER: 'User'
       FILTER: 'type=container'
       EXCLUDE: 'Action=exec_start,Action=exec_die,Action=exec_create'
       DELAY: '500ms'
@@ -100,6 +105,10 @@ Configurations can use the CLI flags or environment variables. The table below o
 | `--mailpassword`      | `MAIL_PASSWORD`         | `""`    | |
 | `--mailport`          | `MAIL_PORT`             | `587`   | |
 | `--mailhost`          | `MAIL_HOST`             | `""`    | `smtp@provider.com` |
+| `--mattermost`        | `MATTERMOST`            | `false` | Enable/Disable Mattermost notification|
+| `--mattermosturl`     | `MATTERMOST_URL`        | `""`    | |
+| `--mattermostchannel` | `MATTERMOST_CHANNEL`    | `""`    | optional |
+| `--mattermostuser`    | `MATTERMOST_USER`       | `"Docker Event Monitor"` | |
 | `--filter`            | `FILTER`                | `""`    | Filter events. Uses the same filters as `docker events` (see [here](https://docs.docker.com/engine/reference/commandline/events/#filter))    |
 | `--exclude`           | `EXCLUDE`               | `""`    | Exclude events from being reported |
 | `--loglevel`          | `LOG_LEVEL`             | `"info"`| Use `debug` for more verbose logging |

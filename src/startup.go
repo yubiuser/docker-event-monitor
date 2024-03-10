@@ -31,6 +31,18 @@ func buildStartupMessage(timestamp time.Time) string {
 		startup_message_builder.WriteString("\nE-Mail notification disabled")
 	}
 
+	if glb_arguments.Mattermost {
+		startup_message_builder.WriteString("\nNotify via Mattermost, using URL " + glb_arguments.MattermostURL)
+		if glb_arguments.MattermostChannel != "" {
+			startup_message_builder.WriteString("\nMattermost channel: " + glb_arguments.MattermostChannel)
+		}
+		if glb_arguments.MattermostUser != "" {
+			startup_message_builder.WriteString("\nMattermost username: " + glb_arguments.MattermostUser)
+		}
+	} else {
+		startup_message_builder.WriteString("\nMattermost notification disabled")
+	}
+
 	if glb_arguments.Delay > 0 {
 		startup_message_builder.WriteString("\nUsing delay of " + glb_arguments.Delay.String())
 	} else {
@@ -81,6 +93,12 @@ func logArguments() {
 					Str("MailHost", glb_arguments.MailHost).
 					Str("MailUser", glb_arguments.MailUser).
 					Int("Port", glb_arguments.MailPort),
+				).
+				Dict("Mattermost", zerolog.Dict().
+					Bool("enabled", glb_arguments.Mattermost).
+					Str("MattermostURL", glb_arguments.MattermostURL).
+					Str("MattermostChannel", glb_arguments.MattermostChannel).
+					Str("MattermostUser", glb_arguments.MattermostUser),
 				),
 			).
 			Str("Delay", glb_arguments.Delay.String()).
