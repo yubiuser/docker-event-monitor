@@ -40,6 +40,14 @@ func sendNotifications(timestamp time.Time, message string, title string) {
 			sendMail(timestamp, message, title)
 		}()
 	}
+
+	if glb_arguments.Mattermost {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sendMattermost(message, title)
+		}()
+	}
 	wg.Wait()
 
 }

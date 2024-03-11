@@ -15,27 +15,31 @@ import (
 )
 
 type args struct {
-	Pushover         bool                `arg:"env:PUSHOVER" default:"false" help:"Enable/Disable Pushover Notification (True/False)"`
-	PushoverAPIToken string              `arg:"env:PUSHOVER_APITOKEN" help:"Pushover's API Token/Key"`
-	PushoverUserKey  string              `arg:"env:PUSHOVER_USER" help:"Pushover's User Key"`
-	Gotify           bool                `arg:"env:GOTIFY" default:"false" help:"Enable/Disable Gotify Notification (True/False)"`
-	GotifyURL        string              `arg:"env:GOTIFY_URL" help:"URL of your Gotify server"`
-	GotifyToken      string              `arg:"env:GOTIFY_TOKEN" help:"Gotify's App Token"`
-	Mail             bool                `arg:"env:MAIL" default:"false" help:"Enable/Disable Mail (SMTP) Notification (True/False)"`
-	MailFrom         string              `arg:"env:MAIL_FROM" help:"your.username@provider.com"`
-	MailTo           string              `arg:"env:MAIL_TO" help:"recipient@provider.com"`
-	MailUser         string              `arg:"env:MAIL_USER" help:"SMTP Username"`
-	MailPassword     string              `arg:"env:MAIL_PASSWORD" help:"SMTP Password"`
-	MailPort         int                 `arg:"env:MAIL_PORT" default:"587" help:"SMTP Port"`
-	MailHost         string              `arg:"env:MAIL_HOST" help:"SMTP Host"`
-	Delay            time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
-	FilterStrings    []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
-	Filter           map[string][]string `arg:"-"`
-	ExcludeStrings   []string            `arg:"env:EXCLUDE,--exclude,separate" help:"Exclude docker events using Docker syntax."`
-	Exclude          map[string][]string `arg:"-"`
-	LogLevel         string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
-	ServerTag        string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
-	Version          bool                `arg:"-v" help:"Print version information."`
+	Pushover          bool                `arg:"env:PUSHOVER" default:"false" help:"Enable/Disable Pushover Notification (True/False)"`
+	PushoverAPIToken  string              `arg:"env:PUSHOVER_APITOKEN" help:"Pushover's API Token/Key"`
+	PushoverUserKey   string              `arg:"env:PUSHOVER_USER" help:"Pushover's User Key"`
+	Gotify            bool                `arg:"env:GOTIFY" default:"false" help:"Enable/Disable Gotify Notification (True/False)"`
+	GotifyURL         string              `arg:"env:GOTIFY_URL" help:"URL of your Gotify server"`
+	GotifyToken       string              `arg:"env:GOTIFY_TOKEN" help:"Gotify's App Token"`
+	Mail              bool                `arg:"env:MAIL" default:"false" help:"Enable/Disable Mail (SMTP) Notification (True/False)"`
+	MailFrom          string              `arg:"env:MAIL_FROM" help:"your.username@provider.com"`
+	MailTo            string              `arg:"env:MAIL_TO" help:"recipient@provider.com"`
+	MailUser          string              `arg:"env:MAIL_USER" help:"SMTP Username"`
+	MailPassword      string              `arg:"env:MAIL_PASSWORD" help:"SMTP Password"`
+	MailPort          int                 `arg:"env:MAIL_PORT" default:"587" help:"SMTP Port"`
+	MailHost          string              `arg:"env:MAIL_HOST" help:"SMTP Host"`
+	Mattermost        bool                `arg:"env:MATTERMOST" default:"false" help:"Enable/Disable Mattermost Notification (True/False)"`
+	MattermostURL     string              `arg:"env:MATTERMOST_URL" help:"URL of your Mattermost incoming webhook"`
+	MattermostChannel string              `arg:"env:MATTERMOST_CHANNEL" help:"Mattermost channel to post in"`
+	MattermostUser    string              `arg:"env:MATTERMOST_USER" default:"Docker Event Monitor" help:"Mattermost user to post as"`
+	Delay             time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
+	FilterStrings     []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
+	Filter            map[string][]string `arg:"-"`
+	ExcludeStrings    []string            `arg:"env:EXCLUDE,--exclude,separate" help:"Exclude docker events using Docker syntax."`
+	Exclude           map[string][]string `arg:"-"`
+	LogLevel          string              `arg:"env:LOG_LEVEL" default:"info" help:"Set log level. Use debug for more logging."`
+	ServerTag         string              `arg:"env:SERVER_TAG" help:"Prefix to include in the title of notifications. Useful when running docker-event-monitors on multiple machines."`
+	Version           bool                `arg:"-v" help:"Print version information."`
 }
 
 // Creating a global logger
@@ -88,6 +92,11 @@ func init() {
 		}
 		if len(glb_arguments.MailHost) == 0 {
 			logger.Fatal().Msg("E-Mail notification enabled. SMTP host address required!")
+		}
+	}
+	if glb_arguments.Mattermost {
+		if len(glb_arguments.MattermostURL) == 0 {
+			logger.Fatal().Msg("Mattermost enabled. Mattermost URL required!")
 		}
 	}
 }
