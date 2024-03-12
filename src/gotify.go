@@ -4,11 +4,17 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 func sendGotify(message string, title string) {
 
-	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
+	// define custom httpClient with a default timeout
+	var netClient = &http.Client{
+		Timeout: time.Second * 10,
+	}
+
+	response, err := netClient.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
 		url.Values{"message": {message}, "title": {title}})
 	if err != nil {
 		logger.Error().Err(err).Str("reporter", "Gotify").Msg("")

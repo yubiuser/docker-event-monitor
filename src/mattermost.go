@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 )
 
 // Adapted from https://github.com/mdeheij/mattergo
@@ -38,7 +39,12 @@ func sendMattermost(message string, title string) {
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	// define custom httpClient with a default timeout
+	var netClient = &http.Client{
+		Timeout: time.Second * 10,
+	}
+
+	resp, err := netClient.Do(req)
 	if err != nil {
 		logger.Error().Err(err).Str("reporter", "Mattermost").Msg("Faild to send request")
 		return
