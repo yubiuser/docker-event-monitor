@@ -1,39 +1,28 @@
 package main
 
 import (
-	"io"
-	"net/http"
-	"net/url"
+	"encoding/json"
 )
 
+type GotifyMessage struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
+
 func sendGotify(message string, title string) {
+	// Send a message to Gotify
 
-	response, err := http.PostForm(glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken,
-		url.Values{"message": {message}, "title": {title}})
+	m := GotifyMessage{
+		Title:   title,
+		Message: message,
+	}
+
+	messageJSON, err := json.Marshal(m)
 	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Gotify").Msg("")
+		logger.Error().Err(err).Str("reporter", "Gotify").Msg("Faild to marshal JSON")
 		return
 	}
 
-	defer response.Body.Close()
-
-	statusCode := response.StatusCode
-
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Gotify").Msg("")
-		return
-	}
-
-	logger.Debug().Str("reporter", "Gotify").Msgf("Gotify response statusCode: %d", statusCode)
-	logger.Debug().Str("reporter", "Gotify").Msgf("Gotify response body: %s", string(body))
-
-	// Log non successfull status codes
-	if statusCode == 200 {
-		logger.Debug().Str("reporter", "Gotify").Msgf("Gotify message delivered")
-	} else {
-		logger.Error().Str("reporter", "Gotify").Msgf("Pushing gotify message failed.")
-		logger.Error().Str("reporter", "Gotify").Msgf("Gotify response body: %s", string(body))
-	}
+	sendhttpMessage("Gotify", glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken, messageJSON)
 
 }
