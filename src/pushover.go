@@ -1,35 +1,81 @@
 package main
 
-import "github.com/gregdel/pushover"
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strconv"
+	"time"
+)
 
-func sendPushover(message string, title string) {
-	// Create a new pushover app with an API token
-	app := pushover.New(glb_arguments.PushoverAPIToken)
+type PushoverMessage struct {
+	Token     string `json:"token"`
+	User      string `json:"user"`
+	Title     string `json:"title"`
+	Message   string `json:"message"`
+	Timestamp string `json:"timestamp"`
+}
 
-	// Create a new recipient (user key)
-	recipient := pushover.NewRecipient(glb_arguments.PushoverUserKey)
+func sendPushover(timestamp time.Time, message string, title string) {
+	// Send a message to Pushover
 
-	// Create the message to send
-	pushmessage := pushover.NewMessageWithTitle(message, title)
+	m := PushoverMessage{
+		Token:     glb_arguments.PushoverAPIToken,
+		User:      glb_arguments.PushoverUserKey,
+		Title:     title,
+		Message:   message,
+		Timestamp: strconv.FormatInt(timestamp.Unix(), 10),
+	}
 
-	// Send the message to the recipient
-	response, err := app.SendMessage(pushmessage, recipient)
+	messageJSON, err := json.Marshal(m)
+	if err != nil {
+		logger.Error().Err(err).Str("reporter", "Pushover").Msg("Faild to marshal JSON")
+		return
+	}
+
+	// Create request
+	req, err := http.NewRequest("POST", "https://api.pushover.net/1/messages.json", bytes.NewBuffer(messageJSON))
+	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	if err != nil {
+		logger.Error().Err(err).Str("reporter", "Pushover").Msg("Faild to build request")
+		return
+	}
+
+	// define custom httpClient with a default timeout
+	var netClient = &http.Client{
+		Timeout: time.Second * 10,
+	}
+
+	// Send request
+	resp, err := netClient.Do(req)
+	if err != nil {
+		logger.Error().Err(err).Str("reporter", "Pushover").Msg("Faild to send request")
+		return
+	}
+	defer resp.Body.Close()
+
+	statusCode := resp.StatusCode
+
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Error().Err(err).Str("reporter", "Pushover").Msg("")
 		return
 	}
-	if response != nil {
-		logger.Debug().Str("reporter", "Pushover").Msgf("%s", response)
-	}
 
-	if response.Status == 1 {
-		// Pushover returns 1 if the message request to the API was valid
-		// https://pushover.net/api#response
-		logger.Debug().Str("reporter", "Pushover").Msgf("Pushover message delivered")
-		return
+	// Log non successfull status codes
+	if statusCode == 200 {
+		logger.Debug().
+			Str("reporter", "Pushover").
+			Int("statusCode", statusCode).
+			Str("responseBody", string(respBody)).
+			Msg("Message delivered")
+	} else {
+		logger.Error().
+			Str("reporter", "Pushover").
+			Int("statusCode", statusCode).
+			Str("responseBody", string(respBody)).
+			Msg("Pushing message failed.")
 	}
-
-	// if response Status !=1
-	logger.Error().Str("reporter", "Pushover").Msg("Pushover message not delivered")
 
 }

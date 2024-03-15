@@ -21,7 +21,7 @@ func sendNotifications(timestamp time.Time, message string, title string) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sendPushover(message, title)
+			sendPushover(timestamp, message, title)
 		}()
 	}
 
