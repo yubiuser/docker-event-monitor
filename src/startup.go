@@ -32,7 +32,7 @@ func buildStartupMessage(timestamp time.Time) string {
 	}
 
 	if glb_arguments.Mattermost {
-		startup_message_builder.WriteString("\n Mattermost notification enabled")
+		startup_message_builder.WriteString("\nMattermost notification enabled")
 		if glb_arguments.MattermostChannel != "" {
 			startup_message_builder.WriteString("\nMattermost channel: " + glb_arguments.MattermostChannel)
 		}
