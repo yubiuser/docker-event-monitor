@@ -15,20 +15,32 @@ func buildStartupMessage(timestamp time.Time) string {
 	startup_message_builder.WriteString("Docker event monitor version: " + version + "\n")
 
 	if glb_arguments.Pushover {
-		startup_message_builder.WriteString("Notify via Pushover, using API Token " + glb_arguments.PushoverAPIToken + " and user key " + glb_arguments.PushoverUserKey)
+		startup_message_builder.WriteString("Pushover notification enabled")
 	} else {
 		startup_message_builder.WriteString("Pushover notification disabled")
 	}
 
 	if glb_arguments.Gotify {
-		startup_message_builder.WriteString("\nNotify via Gotify, using URL " + glb_arguments.GotifyURL + " and APP Token " + glb_arguments.GotifyToken)
+		startup_message_builder.WriteString("\nGotify notification enabled")
 	} else {
 		startup_message_builder.WriteString("\nGotify notification disabled")
 	}
 	if glb_arguments.Mail {
-		startup_message_builder.WriteString("\nNotify via E-Mail from " + glb_arguments.MailFrom + " to " + glb_arguments.MailTo + " using host " + glb_arguments.MailHost + " and port " + strconv.Itoa(glb_arguments.MailPort))
+		startup_message_builder.WriteString("\nE-Mail notification enabled")
 	} else {
 		startup_message_builder.WriteString("\nE-Mail notification disabled")
+	}
+
+	if glb_arguments.Mattermost {
+		startup_message_builder.WriteString("\nMattermost notification enabled")
+		if glb_arguments.MattermostChannel != "" {
+			startup_message_builder.WriteString("\nMattermost channel: " + glb_arguments.MattermostChannel)
+		}
+		if glb_arguments.MattermostUser != "" {
+			startup_message_builder.WriteString("\nMattermost username: " + glb_arguments.MattermostUser)
+		}
+	} else {
+		startup_message_builder.WriteString("\nMattermost notification disabled")
 	}
 
 	if glb_arguments.Delay > 0 {
@@ -81,6 +93,12 @@ func logArguments() {
 					Str("MailHost", glb_arguments.MailHost).
 					Str("MailUser", glb_arguments.MailUser).
 					Int("Port", glb_arguments.MailPort),
+				).
+				Dict("Mattermost", zerolog.Dict().
+					Bool("enabled", glb_arguments.Mattermost).
+					Str("MattermostURL", glb_arguments.MattermostURL).
+					Str("MattermostChannel", glb_arguments.MattermostChannel).
+					Str("MattermostUser", glb_arguments.MattermostUser),
 				),
 			).
 			Str("Delay", glb_arguments.Delay.String()).
