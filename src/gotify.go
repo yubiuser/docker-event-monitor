@@ -9,7 +9,7 @@ type GotifyMessage struct {
 	Message string `json:"message"`
 }
 
-func sendGotify(message string, title string) {
+func sendGotify(message string, title string, errCh chan ReporterError) {
 	// Send a message to Gotify
 
 	m := GotifyMessage{
@@ -17,12 +17,23 @@ func sendGotify(message string, title string) {
 		Message: message,
 	}
 
+	e := ReporterError{
+		Reporter: "Gotify",
+	}
+
 	messageJSON, err := json.Marshal(m)
 	if err != nil {
 		logger.Error().Err(err).Str("reporter", "Gotify").Msg("Faild to marshal JSON")
+		e.Error = err
+		errCh <- e
 		return
 	}
 
-	sendhttpMessage("Gotify", glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken, messageJSON)
+	err = sendhttpMessage("Gotify", glb_arguments.GotifyURL+"/message?token="+glb_arguments.GotifyToken, messageJSON)
+	if err != nil {
+		e.Error = err
+		errCh <- e
+		return
+	}
 
 }
