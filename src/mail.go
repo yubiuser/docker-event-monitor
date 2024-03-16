@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/smtp"
 	"strconv"
 	"strings"
@@ -44,7 +45,7 @@ func sendMail(timestamp time.Time, message string, title string, errCh chan Repo
 	err := smtp.SendMail(address, auth, from, to, []byte(mail))
 	if err != nil {
 		logger.Error().Err(err).Str("reporter", "Mail").Msg("")
-		e.Error = err
+		e.Error = errors.New("failed to send mail")
 		errCh <- e
 		return
 	}

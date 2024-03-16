@@ -66,7 +66,7 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 	}
 	wg.Wait()
 
-	// all reporters finished, closign the error channel
+	// all reporters finished, closing the error channel
 	close(errCh)
 
 	// iterate over the items in the error channel
@@ -84,14 +84,15 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 		}
 
 		// iterate over the failed reportes and remove them from all enabled reports
-		// send error notifications to remaining (working) reporters
+		// send error notifications to remaining (working) reporters only to
+		// prevent looping error notifications to non-working reporters
 		for _, item := range ReporterErrors {
 			reporters = removeFromSlice(reporters, item.Reporter)
 		}
 
 		for _, item := range ReporterErrors {
 			err := fmt.Sprint(item.Error)
-			sendNotifications(time.Now(), "{"+err+"}", "Error: Reporter "+item.Reporter+" failed", reporters)
+			sendNotifications(time.Now(), "Error: "+err+"\nCheck log for details", "Error: Reporter "+item.Reporter+" failed", reporters)
 		}
 
 	}
@@ -113,8 +114,8 @@ func sendhttpMessage(reporter string, address string, messageJSON []byte) error 
 	req, err := http.NewRequest("POST", address, bytes.NewBuffer(messageJSON))
 	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	if err != nil {
-		logger.Error().Err(err).Str("reporter", reporter).Msg("Faild to build request")
-		return err
+		logger.Error().Err(err).Str("reporter", reporter).Msg("Failed to build request")
+		return errors.New("failed to build request")
 	}
 
 	// define custom httpClient with a default timeout
@@ -125,8 +126,8 @@ func sendhttpMessage(reporter string, address string, messageJSON []byte) error 
 	// Send request
 	resp, err := netClient.Do(req)
 	if err != nil {
-		logger.Error().Err(err).Str("reporter", reporter).Msg("Faild to send request")
-		return err
+		logger.Error().Err(err).Str("reporter", reporter).Msg("Failed to send request")
+		return errors.New("failed to send request")
 	}
 	defer resp.Body.Close()
 
@@ -135,17 +136,17 @@ func sendhttpMessage(reporter string, address string, messageJSON []byte) error 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Error().Err(err).Str("reporter", reporter).Msg("")
-		return err
+		return errors.New("reading response body failed")
 	}
 
 	// Log non successfull status codes
 	if statusCode != 200 {
 		logger.Error().
 			Str("reporter", reporter).
-			Int("statusCode", statusCode).
-			Str("responseBody", string(respBody)).
+			Int("status code", statusCode).
+			Str("response body", string(respBody)).
 			Msg("Pushing message failed")
-		return errors.New("Pushing message failed\nstatusCode: " + strconv.Itoa(statusCode) + "\nresponseBody: " + string(respBody))
+		return errors.New("pushing message failed\nhttp status code: " + strconv.Itoa(statusCode))
 	}
 	logger.Debug().
 		Str("reporter", reporter).

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 )
 
 type GotifyMessage struct {
@@ -23,8 +24,8 @@ func sendGotify(message string, title string, errCh chan ReporterError) {
 
 	messageJSON, err := json.Marshal(m)
 	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Gotify").Msg("Faild to marshal JSON")
-		e.Error = err
+		logger.Error().Err(err).Str("reporter", "Gotify").Msg("Failed to marshal JSON")
+		e.Error = errors.New("failed to marshal JSON")
 		errCh <- e
 		return
 	}

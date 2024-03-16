@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"time"
 )
@@ -31,8 +32,8 @@ func sendPushover(timestamp time.Time, message string, title string, errCh chan 
 
 	messageJSON, err := json.Marshal(m)
 	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Pushover").Msg("Faild to marshal JSON")
-		e.Error = err
+		logger.Error().Err(err).Str("reporter", "Pushover").Msg("Failed to marshal JSON")
+		e.Error = errors.New("failed to marshal JSON")
 		errCh <- e
 		return
 	}
