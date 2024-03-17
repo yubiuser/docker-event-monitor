@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/smtp"
 	"strconv"
 	"strings"
@@ -19,7 +20,11 @@ func buildEMail(timestamp time.Time, from string, to []string, subject string, b
 	return msg.String()
 }
 
-func sendMail(timestamp time.Time, message string, title string) {
+func sendMail(timestamp time.Time, message string, title string, errCh chan ReporterError) {
+
+	e := ReporterError{
+		Reporter: "Mail",
+	}
 
 	from := glb_arguments.MailFrom
 	to := []string{glb_arguments.MailTo}
@@ -40,6 +45,9 @@ func sendMail(timestamp time.Time, message string, title string) {
 	err := smtp.SendMail(address, auth, from, to, []byte(mail))
 	if err != nil {
 		logger.Error().Err(err).Str("reporter", "Mail").Msg("")
+		e.Error = errors.New("failed to send mail")
+		errCh <- e
 		return
 	}
+
 }

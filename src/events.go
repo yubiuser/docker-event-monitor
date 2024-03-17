@@ -85,7 +85,7 @@ func processEvent(event events.Message) {
 
 	// send notifications to various reporters
 	// function will finish when all reporters finished
-	sendNotifications(timestamp, message, title)
+	sendNotifications(timestamp, message, title, glb_arguments.Reporters)
 
 	// block function until time (delay) triggers
 	// if sendNotifications is faster than the delay, function blocks here until delay is over

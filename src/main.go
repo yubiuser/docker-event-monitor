@@ -32,6 +32,7 @@ type args struct {
 	MattermostURL     string              `arg:"env:MATTERMOST_URL" help:"URL of your Mattermost incoming webhook"`
 	MattermostChannel string              `arg:"env:MATTERMOST_CHANNEL" help:"Mattermost channel to post in"`
 	MattermostUser    string              `arg:"env:MATTERMOST_USER" default:"Docker Event Monitor" help:"Mattermost user to post as"`
+	Reporters         []string            `arg:"-"`
 	Delay             time.Duration       `arg:"env:DELAY" default:"500ms" help:"Delay before next message is send"`
 	FilterStrings     []string            `arg:"env:FILTER,--filter,separate" help:"Filter docker events using Docker syntax."`
 	Filter            map[string][]string `arg:"-"`
@@ -112,7 +113,7 @@ func main() {
 
 	timestamp := time.Now()
 	startup_message := buildStartupMessage(timestamp)
-	sendNotifications(timestamp, startup_message, "Starting docker event monitor")
+	sendNotifications(timestamp, startup_message, "Starting docker event monitor", glb_arguments.Reporters)
 
 	filterArgs := filters.NewArgs()
 	for key, values := range glb_arguments.Filter {
@@ -179,6 +180,21 @@ func parseArgs() {
 		key := strings.TrimSpace(exclude[:pos])
 		val := exclude[pos+1:]
 		glb_arguments.Exclude[key] = append(glb_arguments.Exclude[key], val)
+	}
+
+	//Parse enabled reportes
+
+	if glb_arguments.Gotify {
+		glb_arguments.Reporters = append(glb_arguments.Reporters, "Gotify")
+	}
+	if glb_arguments.Mattermost {
+		glb_arguments.Reporters = append(glb_arguments.Reporters, "Mattermost")
+	}
+	if glb_arguments.Pushover {
+		glb_arguments.Reporters = append(glb_arguments.Reporters, "Pushover")
+	}
+	if glb_arguments.Mail {
+		glb_arguments.Reporters = append(glb_arguments.Reporters, "Mail")
 	}
 
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"time"
 )
@@ -14,7 +15,7 @@ type PushoverMessage struct {
 	Timestamp string `json:"timestamp"`
 }
 
-func sendPushover(timestamp time.Time, message string, title string) {
+func sendPushover(timestamp time.Time, message string, title string, errCh chan ReporterError) {
 	// Send a message to Pushover
 
 	m := PushoverMessage{
@@ -25,12 +26,23 @@ func sendPushover(timestamp time.Time, message string, title string) {
 		Timestamp: strconv.FormatInt(timestamp.Unix(), 10),
 	}
 
+	e := ReporterError{
+		Reporter: "Pushover",
+	}
+
 	messageJSON, err := json.Marshal(m)
 	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Pushover").Msg("Faild to marshal JSON")
+		logger.Error().Err(err).Str("reporter", "Pushover").Msg("Failed to marshal JSON")
+		e.Error = errors.New("failed to marshal JSON")
+		errCh <- e
 		return
 	}
 
-	sendhttpMessage("Pushover", "https://api.pushover.net/1/messages.json", messageJSON)
+	err = sendhttpMessage("Pushover", "https://api.pushover.net/1/messages.json", messageJSON)
+	if err != nil {
+		e.Error = err
+		errCh <- e
+		return
+	}
 
 }
