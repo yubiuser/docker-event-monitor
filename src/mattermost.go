@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 )
 
 // Adapted from https://github.com/mdeheij/mattergo
@@ -14,7 +15,7 @@ type MattermostMessage struct {
 }
 
 // Send a message to a Mattermost chat channel
-func sendMattermost(message string, title string) {
+func sendMattermost(message string, title string, errCh chan ReporterError) {
 
 	m := MattermostMessage{
 		Username: glb_arguments.MattermostUser,
@@ -22,12 +23,23 @@ func sendMattermost(message string, title string) {
 		Text:     "##### " + title + "\n" + message,
 	}
 
+	e := ReporterError{
+		Reporter: "Mattermost",
+	}
+
 	messageJSON, err := json.Marshal(m)
 	if err != nil {
-		logger.Error().Err(err).Str("reporter", "Mattermost").Msg("Faild to marshal JSON")
+		logger.Error().Err(err).Str("reporter", "Mattermost").Msg("Failed to marshal JSON")
+		e.Error = errors.New("failed to marshal JSON")
+		errCh <- e
 		return
 	}
 
-	sendhttpMessage("Mattermost", glb_arguments.MattermostURL, messageJSON)
+	err = sendhttpMessage("Mattermost", glb_arguments.MattermostURL, messageJSON)
+	if err != nil {
+		e.Error = err
+		errCh <- e
+		return
+	}
 
 }
