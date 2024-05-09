@@ -31,3 +31,29 @@ reporter:
     url: http://mattermost.lan
     channel: Docker Event Channel
     user: Docker Event Bot
+
+notifications:
+  - name: "Alert me when watchtower/.* based container restarts"
+    event:
+      "Action": ["(start|stop)"]
+      "Actor.Attributes.image": ["watchtower/.*"]
+    notify:
+      - pushover
+      - mail
+      - gotify
+  - name: "Alert me when unifi/.* based container dies with exitCode 1"
+    event:
+      "Action": ["(die|destroy)"]
+      "Actor.Attributes.image": ["unifi/.*"]
+      "Actor.Attributes.exitCode": ["1"]
+    notify:
+      - pushover
+      - mattermost
+
+  - name: "Alert only on gotify when container dies with exitCode 0"
+    event:
+      "Action": ["(die|destroy)"]
+      "Actor.Attributes.image": ["pihole/.*"]
+      "Actor.Attributes.exitCode": ["0"]
+    notify:
+      - gotify

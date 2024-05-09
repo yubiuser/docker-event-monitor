@@ -72,6 +72,7 @@ func logArguments() {
 	log.Info().
 		Interface("options", config.Options).
 		Interface("reporter", config.Reporter).
+		Interface("notifications", config.Notifications).
 		Dict("version", zerolog.Dict().
 			Str("Version", version).
 			Str("Branch", branch).
