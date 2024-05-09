@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -52,10 +53,10 @@ func buildStartupMessage(timestamp time.Time) string {
 		startup_message_builder.WriteString("\nServerTag: none")
 	}
 
-	if len(config.Options.FilterStrings) > 0 {
-		startup_message_builder.WriteString("\nFilterStrings: " + strings.Join(config.Options.FilterStrings, " "))
+	if len(config.Options.Filter) > 0 {
+		startup_message_builder.WriteString("\nGlobal filter: " + mapToString(config.Options.Filter))
 	} else {
-		startup_message_builder.WriteString("\nFilterStrings: none")
+		startup_message_builder.WriteString("\nGlobal filter: none")
 	}
 
 	if len(config.Options.ExcludeStrings) > 0 {
@@ -75,17 +76,46 @@ func logArguments() {
 			Str("Version", version).
 			Str("Branch", branch).
 			Str("Commit", commit).
-			Time("Compile_date", stringToUnix(date)).
-			Time("Git_date", stringToUnix(gitdate)),
+			Time("Compile_date", stringToUnixTime(date)).
+			Time("Git_date", stringToUnixTime(gitdate)),
 		).
 		Msg("Docker event monitor started")
 }
 
-func stringToUnix(str string) time.Time {
+// converts a string to a time.Time in unix fortmat
+func stringToUnixTime(str string) time.Time {
 	i, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		log.Fatal().Err(err).Msg("String to timestamp conversion failed")
 	}
 	tm := time.Unix(i, 0)
 	return tm
+}
+
+// walks through a nested map and returns a unified string as in
+// string = [key:value,value] [key:value] []key:value,value
+func mapToString(m map[string][]string) string {
+	var builder strings.Builder
+
+	// Iterate over the map
+	for key, values := range m {
+		// Append key to the string
+		builder.WriteString(fmt.Sprintf("[%s: ", key))
+
+		lenght := len(values)
+		i := 0
+		// Append values to the string
+		for _, value := range values {
+			i++
+			builder.WriteString(value)
+			// Add comma except for the last value
+			if i < lenght {
+				builder.WriteString(", ")
+			}
+		}
+		// Add a space to separate keys
+		builder.WriteString("] ")
+	}
+
+	return builder.String()
 }

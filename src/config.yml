@@ -1,6 +1,10 @@
 ---
 options:
-  filter_strings: ["type=container"]
+  filter:
+    type: ["container"]
+  # container: ["some_container_name"]
+  # image: ["some_image_name"]
+  # event: ["start", "stop", "die", "destroy"]
   exclude_strings: ["Action=exec_start", "Action=exec_die", "Action=exec_create"]
   log_level: debug
   server_tag: My Server
@@ -27,4 +31,3 @@ reporter:
     url: http://mattermost.lan
     channel: Docker Event Channel
     user: Docker Event Bot
-

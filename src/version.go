@@ -20,8 +20,8 @@ func printVersion() {
 		Str("Version", version).
 		Str("Branch", branch).
 		Str("Commit", commit).
-		Time("Compile_date", stringToUnix(date)).
-		Time("Git_date", stringToUnix(gitdate)).
+		Time("Compile_date", stringToUnixTime(date)).
+		Time("Git_date", stringToUnixTime(gitdate)).
 		Msg("Version Information")
 	os.Exit(0)
 }

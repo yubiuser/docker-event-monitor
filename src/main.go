@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -115,33 +114,6 @@ func loadConfig() {
 
 func parseArgs() {
 
-	// Parse (include) filters
-	config.Filter = make(map[string][]string)
-
-	for _, filter := range config.Options.FilterStrings {
-		pos := strings.Index(filter, "=")
-		if pos == -1 {
-			log.Fatal().Msg("each filter should be of the form key=value")
-		}
-		key := filter[:pos]
-		val := filter[pos+1:]
-		config.Filter[key] = append(config.Filter[key], val)
-	}
-
-	// Parse exclude filters
-	config.Exclude = make(map[string][]string)
-
-	for _, exclude := range config.Options.ExcludeStrings {
-		pos := strings.Index(exclude, "=")
-		if pos == -1 {
-			log.Fatal().Msg("each filter should be of the form key=value")
-		}
-		//trim whitespaces
-		key := strings.TrimSpace(exclude[:pos])
-		val := exclude[pos+1:]
-		config.Exclude[key] = append(config.Exclude[key], val)
-	}
-
 	//Parse Enabled reportes
 
 	if config.Reporter.Gotify.Enabled {
@@ -185,7 +157,7 @@ func main() {
 	sendNotifications(timestamp, startup_message, "Starting docker event monitor", config.EnabledReporter)
 
 	filterArgs := filters.NewArgs()
-	for key, values := range config.Filter {
+	for key, values := range config.Options.Filter {
 		for _, value := range values {
 			filterArgs.Add(key, value)
 		}
