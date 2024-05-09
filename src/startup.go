@@ -59,12 +59,6 @@ func buildStartupMessage(timestamp time.Time) string {
 		startup_message_builder.WriteString("\nGlobal filter: none")
 	}
 
-	if len(config.Options.ExcludeStrings) > 0 {
-		startup_message_builder.WriteString("\nExcludeStrings: " + strings.Join(config.Options.ExcludeStrings, " "))
-	} else {
-		startup_message_builder.WriteString("\nExcludeStrings: none")
-	}
-
 	return startup_message_builder.String()
 }
 

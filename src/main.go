@@ -180,14 +180,6 @@ func main() {
 			// if logging level is debug, log the event
 			log.Debug().
 				Interface("event", event).Msg("")
-
-			// Check if event should be exlcuded from reporting
-			if len(config.Exclude) > 0 {
-				log.Debug().Msg("Performing check for event exclusion")
-				if excludeEvent(event) {
-					break //breaks out of the select and waits for the next event to arrive
-				}
-			}
 			processEvent(event)
 		}
 	}

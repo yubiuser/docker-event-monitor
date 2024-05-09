@@ -35,7 +35,6 @@ type reporter struct {
 
 type options struct {
 	Filter         map[string][]string `yaml:"filter"`
-	ExcludeStrings []string            `yaml:"exclude_strings,flow"`
 	LogLevel       string              `yaml:"log_level"`
 	ServerTag      string              `yaml:"server_tag"`
 }
@@ -50,6 +49,5 @@ type Config struct {
 	Reporter        reporter
 	Options         options
 	EnabledReporter []string            `yaml:"-"`
-	Exclude         map[string][]string `yaml:"-"`
 	Notifications   []notification      `yaml:"notifications"`
 }
