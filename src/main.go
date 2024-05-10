@@ -20,7 +20,7 @@ import (
 // hold config options and settings globally
 var config Config
 
-// should we only print version information and exit
+// should we only print version information and exit?
 var showVersion bool
 
 // config file path
@@ -117,16 +117,16 @@ func parseArgs() {
 	//Parse Enabled reportes
 
 	if config.Reporter.Gotify.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Gotify")
+		config.EnabledReporter = append(config.EnabledReporter, "gotify")
 	}
 	if config.Reporter.Mattermost.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Mattermost")
+		config.EnabledReporter = append(config.EnabledReporter, "mattermost")
 	}
 	if config.Reporter.Pushover.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Pushover")
+		config.EnabledReporter = append(config.EnabledReporter, "pushover")
 	}
 	if config.Reporter.Mail.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Mail")
+		config.EnabledReporter = append(config.EnabledReporter, "mail")
 	}
 
 }
@@ -152,9 +152,10 @@ func main() {
 	// log all supplied arguments
 	logArguments()
 
-	timestamp := time.Now()
-	startup_message := buildStartupMessage(timestamp)
-	sendNotifications(timestamp, startup_message, "Starting docker event monitor", config.EnabledReporter)
+	startup_time := time.Now()
+	startup_message := buildStartupMessage(startup_time)
+	sendNotifications(startup_time, startup_message, "Starting docker event monitor", config.EnabledReporter)
+
 
 	filterArgs := filters.NewArgs()
 	for key, values := range config.Options.Filter {
@@ -180,7 +181,7 @@ func main() {
 			// if logging level is debug, log the event
 			log.Debug().
 				Interface("event", event).Msg("")
-			processEvent(event)
+			checkReporter(event)
 		}
 	}
 }

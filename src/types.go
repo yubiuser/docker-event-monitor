@@ -1,16 +1,16 @@
 package main
 
-type pushover struct {
+type pushoverConfig struct {
 	Enabled  bool
 	APIToken string `yaml:"api_token"`
 	UserKey  string `yaml:"user_key"`
 }
-type gotify struct {
+type gotifyConfig struct {
 	Enabled bool
 	URL     string `yaml:"url"`
 	Token   string `yaml:"token"`
 }
-type mail struct {
+type mailConfig struct {
 	Enabled  bool
 	From     string `yaml:"from"`
 	To       string `yaml:"to"`
@@ -19,7 +19,7 @@ type mail struct {
 	Port     int    `yaml:"port"`
 	Host     string `yaml:"host"`
 }
-type mattermost struct {
+type mattermostConfig struct {
 	Enabled bool
 	URL     string `yaml:"url"`
 	Channel string `yaml:"channel"`
@@ -27,16 +27,16 @@ type mattermost struct {
 }
 
 type reporter struct {
-	Pushover   pushover
-	Gotify     gotify
-	Mail       mail
-	Mattermost mattermost
+	Pushover   pushoverConfig
+	Gotify     gotifyConfig
+	Mail       mailConfig
+	Mattermost mattermostConfig
 }
 
 type options struct {
-	Filter         map[string][]string `yaml:"filter"`
-	LogLevel       string              `yaml:"log_level"`
-	ServerTag      string              `yaml:"server_tag"`
+	Filter    map[string][]string `yaml:"filter"`
+	LogLevel  string              `yaml:"log_level"`
+	ServerTag string              `yaml:"server_tag"`
 }
 
 type notification struct {
@@ -48,6 +48,6 @@ type notification struct {
 type Config struct {
 	Reporter        reporter
 	Options         options
-	EnabledReporter []string            `yaml:"-"`
-	Notifications   []notification      `yaml:"notifications"`
+	EnabledReporter []string       `yaml:"-"`
+	Notifications   []notification `yaml:"notifications"`
 }

@@ -25,7 +25,7 @@ func buildEMail(timestamp time.Time, from string, to []string, subject string, b
 func sendMail(timestamp time.Time, message string, title string, errCh chan ReporterError) {
 
 	e := ReporterError{
-		Reporter: "Mail",
+		Reporter: "mail",
 	}
 
 	from := config.Reporter.Mail.From

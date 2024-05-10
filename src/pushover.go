@@ -29,7 +29,7 @@ func sendPushover(timestamp time.Time, message string, title string, errCh chan 
 	}
 
 	e := ReporterError{
-		Reporter: "Pushover",
+		Reporter: "pushover",
 	}
 
 	messageJSON, err := json.Marshal(m)

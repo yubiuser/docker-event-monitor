@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -10,7 +11,53 @@ import (
 	"golang.org/x/text/language"
 )
 
-func processEvent(event events.Message) {
+func checkReporter(event events.Message) {
+
+	// check if notifications are configured and apply event checks
+	// if none are configured process event right away
+	if len(config.Notifications) > 0 {
+
+		for _, notification := range config.Notifications {
+			log.Debug().Str("rule", notification.Name).Msg("Checking event for match")
+
+			if matchEvent(event, notification) {
+				log.Debug().Str("rule", notification.Name).Msg("Rule matched")
+
+				// check which reporters should be used
+				// if none are configured notification is send to all enabled reporters
+				if len(notification.Notify) > 0 {
+
+					// remove disabled reporters
+					for _, reporter := range notification.Notify {
+						if !slices.Contains(config.EnabledReporter, reporter) {
+							log.Error().Str("reporter", reporter).Msg("Reporter not enabled")
+							notification.Notify = removeFromSlice(notification.Notify, reporter)
+						}
+					}
+
+					// check if there are reporters left after removing disabled ones
+					if len(notification.Notify) > 0 {
+						log.Debug().Str("rule", notification.Name).Interface("using reporters", notification.Notify).Send()
+						processEvent(event, notification.Notify)
+					} else {
+						log.Error().Str("rule", notification.Name).Msg("No enabled reporter for this rule found")
+					}
+
+				} else {
+					processEvent(event, config.EnabledReporter)
+				}
+			}
+		}
+
+	} else {
+		processEvent(event, config.EnabledReporter)
+	}
+}
+func matchEvent(event events.Message, notification notification) bool {
+	return true
+}
+
+func processEvent(event events.Message, reporters []string) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
@@ -79,7 +126,7 @@ func processEvent(event events.Message) {
 
 	// send notifications to various reporters
 	// function will finish when all reporters finished
-	sendNotifications(timestamp, message, title, config.EnabledReporter)
+	sendNotifications(timestamp, message, title, reporters)
 
 }
 

@@ -21,7 +21,7 @@ type ReporterError struct {
 
 func sendNotifications(timestamp time.Time, message string, title string, reporters []string) {
 	// Sending messages to different services as goroutines concurrently
-	// Adding a wait group here to delay execution until all functions return,
+	// Adding a wait group here to delay execution until all functions return
 
 	var wg sync.WaitGroup
 	var ReporterErrors []ReporterError
@@ -34,7 +34,7 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 		title = "[" + config.Options.ServerTag + "] " + title
 	}
 
-	if slices.Contains(reporters, "Pushover") {
+	if slices.Contains(reporters, "pushover") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -42,7 +42,7 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 		}()
 	}
 
-	if slices.Contains(reporters, "Gotify") {
+	if slices.Contains(reporters, "gotify") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -50,7 +50,7 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 		}()
 	}
 
-	if slices.Contains(reporters, "Mail") {
+	if slices.Contains(reporters, "mail") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -58,7 +58,7 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 		}()
 	}
 
-	if slices.Contains(reporters, "Mattermost") {
+	if slices.Contains(reporters, "mattermost") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -84,7 +84,7 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 			return
 		}
 
-		// iterate over the failed reportes and remove them from all enabled reports
+		// iterate over the failed reportes and remove them from all enabled reporters
 		// send error notifications to remaining (working) reporters only to
 		// prevent looping error notifications to non-working reporters
 		for _, item := range ReporterErrors {
