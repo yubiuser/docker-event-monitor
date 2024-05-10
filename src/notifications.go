@@ -88,7 +88,7 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 		// send error notifications to remaining (working) reporters only to
 		// prevent looping error notifications to non-working reporters
 		for _, item := range ReporterErrors {
-			reporters = removeFromSlice(reporters, item.Reporter)
+			reporters = removeStringFromSliceInsensitive(reporters, item.Reporter)
 		}
 
 		for _, item := range ReporterErrors {
@@ -97,16 +97,6 @@ func sendNotifications(timestamp time.Time, message string, title string, report
 		}
 
 	}
-}
-
-func removeFromSlice(slice []string, element string) []string {
-	var result []string
-	for _, item := range slice {
-		if item != element {
-			result = append(result, item)
-		}
-	}
-	return result
 }
 
 func sendhttpMessage(reporter string, address string, messageJSON []byte) error {

@@ -31,7 +31,7 @@ func checkReporter(event events.Message) {
 					for _, reporter := range notification.Notify {
 						if !slices.Contains(config.EnabledReporter, reporter) {
 							log.Error().Str("reporter", reporter).Msg("Reporter not enabled")
-							notification.Notify = removeFromSlice(notification.Notify, reporter)
+							notification.Notify = removeStringFromSliceInsensitive(notification.Notify, reporter)
 						}
 					}
 
