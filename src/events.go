@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -14,17 +15,15 @@ import (
 func checkReporter(event events.Message) {
 
 	// check if notifications are configured and apply event checks
-	// if none are configured process event right away
+	// if none are configured, process event right away
 	if len(config.Notifications) > 0 {
 
 		for _, notification := range config.Notifications {
-			log.Debug().Str("rule", notification.Name).Msg("Checking event for match")
 
 			if matchEvent(event, notification) {
-				log.Debug().Str("rule", notification.Name).Msg("Rule matched")
 
 				// check which reporters should be used
-				// if none are configured notification is send to all enabled reporters
+				// if none are configured, notification is send to all enabled reporters
 				if len(notification.Notify) > 0 {
 
 					// remove disabled reporters
@@ -54,6 +53,49 @@ func checkReporter(event events.Message) {
 	}
 }
 func matchEvent(event events.Message, notification notification) bool {
+
+	// only proceed when rules are set
+	if len(notification.Event) == 0 {
+		log.Error().Str("name", notification.Name).Msg("No rules configured. Skipping")
+		return false
+	}
+
+	log.Debug().Str("name", notification.Name).Msg("Checking event for match")
+
+	// Convert the event to a flattend map
+	eventMap := structToFlatMap(event)
+
+	for eventKey, rules := range notification.Event {
+		ruleString := strings.Join(rules, ", ")
+		for _, rule := range rules {
+
+			// get the value of the event's eventKey
+			eventValue, keyExist := eventMap[eventKey]
+
+			// Check if the key exists in the eventMap
+			if !keyExist {
+				log.Debug().
+					Msgf("Eventkey \"%s\" does not exist in event", eventKey)
+				return false
+			}
+
+			matched, err := regexp.MatchString(rule, eventValue)
+			if err != nil {
+				log.Error().Err(err).Msg("regex matching failed")
+			}
+
+			// regex did not match
+			if !matched {
+				log.Debug().
+					Msgf("Rule \"%s: %s\" did not match", eventKey, ruleString)
+				return false
+			}
+
+		}
+		log.Debug().
+			Msgf("Rule \"%s: %s\" matched", eventKey, ruleString)
+	}
+	log.Debug().Str("name", notification.Name).Msg("All rules matched. Triggering notification")
 	return true
 }
 
