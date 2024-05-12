@@ -20,31 +20,36 @@ func checkReporter(event events.Message) {
 
 		for _, notification := range config.Notifications {
 
-			if matchEvent(event, notification) {
+			// only process enabled notifications
+			if notification.Enabled {
+				if matchEvent(event, notification) {
 
-				// check which reporters should be used
-				// if none are configured, notification is send to all enabled reporters
-				if len(notification.Notify) > 0 {
-
-					// remove disabled reporters
-					for _, reporter := range notification.Notify {
-						if !slices.Contains(config.EnabledReporter, reporter) {
-							log.Error().Str("reporter", reporter).Msg("Reporter not enabled")
-							notification.Notify = removeStringFromSliceInsensitive(notification.Notify, reporter)
-						}
-					}
-
-					// check if there are reporters left after removing disabled ones
+					// check which reporters should be used
+					// if none are configured, notification is send to all enabled reporters
 					if len(notification.Notify) > 0 {
-						log.Debug().Str("rule", notification.Name).Interface("using reporters", notification.Notify).Send()
-						processEvent(event, notification.Notify)
-					} else {
-						log.Error().Str("rule", notification.Name).Msg("No enabled reporter for this rule found")
-					}
 
-				} else {
-					processEvent(event, config.EnabledReporter)
+						// remove disabled reporters
+						for _, reporter := range notification.Notify {
+							if !slices.Contains(config.EnabledReporter, reporter) {
+								log.Error().Str("reporter", reporter).Msg("Reporter not enabled")
+								notification.Notify = removeStringFromSliceInsensitive(notification.Notify, reporter)
+							}
+						}
+
+						// check if there are reporters left after removing disabled ones
+						if len(notification.Notify) > 0 {
+							log.Debug().Str("rule", notification.Name).Interface("using reporters", notification.Notify).Send()
+							processEvent(event, notification.Notify)
+						} else {
+							log.Error().Str("rule", notification.Name).Msg("No enabled reporter for this rule found")
+						}
+
+					} else {
+						processEvent(event, config.EnabledReporter)
+					}
 				}
+			} else {
+				log.Debug().Msgf("Skipping disabled notification \"%s\"", notification.Name)
 			}
 		}
 

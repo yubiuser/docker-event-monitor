@@ -33,6 +33,7 @@ reporter:
 
 notifications:
   - name: "Alert me when watchtower/.* based container restarts"
+    enabled: false
     event:
       "Action": ["(start|stop)"]
       "Actor.Attributes.image": ["watchtower/.*"]
@@ -41,6 +42,7 @@ notifications:
       - mail
       - gotify
   - name: "Alert me when unifi/.* based container dies with exitCode 1"
+    enabled: true
     event:
       "Action": ["(die|destroy)"]
       "Actor.Attributes.image": ["unifi/.*"]
@@ -50,6 +52,7 @@ notifications:
       - mattermost
 
   - name: "Alert only on gotify when container dies with exitCode 0"
+    enabled: true
     event:
       "Action": ["(die|destroy)"]
       "Actor.Attributes.image": ["pihole/.*"]

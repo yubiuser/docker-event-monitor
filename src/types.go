@@ -40,9 +40,10 @@ type options struct {
 }
 
 type notification struct {
-	Name   string              `yaml:"name"`
-	Event  map[string][]string `yaml:"event"`
-	Notify []string            `yaml:"notify"`
+	Name    string              `yaml:"name"`
+	Enabled bool                `yaml:"enabled"`
+	Event   map[string][]string `yaml:"event"`
+	Notify  []string            `yaml:"notify"`
 }
 
 type Config struct {
