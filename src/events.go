@@ -70,35 +70,32 @@ func matchEvent(event events.Message, notification notification) bool {
 	// Convert the event to a flattend map
 	eventMap := structToFlatMap(event)
 
-	for eventKey, rules := range notification.Event {
-		ruleString := strings.Join(rules, ", ")
-		for _, rule := range rules {
+	for eventKey, rule := range notification.Event {
 
-			// get the value of the event's eventKey
-			eventValue, keyExist := eventMap[eventKey]
+		// get the value of the event's eventKey
+		eventValue, keyExist := eventMap[eventKey]
 
-			// Check if the key exists in the eventMap
-			if !keyExist {
-				log.Debug().
-					Msgf("Eventkey \"%s\" does not exist in event", eventKey)
-				return false
-			}
-
-			matched, err := regexp.MatchString(rule, eventValue)
-			if err != nil {
-				log.Error().Err(err).Msg("regex matching failed")
-			}
-
-			// regex did not match
-			if !matched {
-				log.Debug().
-					Msgf("Rule \"%s: %s\" did not match", eventKey, ruleString)
-				return false
-			}
-
+		// Check if the key exists in the eventMap
+		if !keyExist {
+			log.Debug().
+				Msgf("Eventkey \"%s\" does not exist in event", eventKey)
+			return false
 		}
+
+		matched, err := regexp.MatchString(rule, eventValue)
+		if err != nil {
+			log.Error().Err(err).Msg("regex matching failed")
+		}
+
+		// regex did not match
+		if !matched {
+			log.Debug().
+				Msgf("Rule \"%s: %s\" did not match", eventKey, rule)
+			return false
+		}
+
 		log.Debug().
-			Msgf("Rule \"%s: %s\" matched", eventKey, ruleString)
+			Msgf("Rule \"%s: %s\" matched", eventKey, rule)
 	}
 	log.Debug().Str("name", notification.Name).Msg("All rules matched. Triggering notification")
 	return true
