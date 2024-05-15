@@ -1,5 +1,9 @@
 package main
 
+import (
+	"regexp"
+)
+
 type pushoverConfig struct {
 	Enabled  bool
 	APIToken string `yaml:"api_token"`
@@ -40,10 +44,11 @@ type options struct {
 }
 
 type notification struct {
-	Name    string              `yaml:"name"`
-	Enabled bool                `yaml:"enabled"`
-	Event   map[string]string `yaml:"event"`
-	Notify  []string            `yaml:"notify"`
+	Name    string                   `yaml:"name"`
+	Enabled bool                     `yaml:"enabled"`
+	Event   map[string]string        `yaml:"event"`
+	Notify  []string                 `yaml:"notify"`
+	Regex   map[string]regexp.Regexp `yaml:"-"`
 }
 
 type Config struct {

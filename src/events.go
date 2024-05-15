@@ -1,7 +1,6 @@
 package main
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -60,7 +59,7 @@ func checkReporter(event events.Message) {
 func matchEvent(event events.Message, notification notification) bool {
 
 	// only proceed when rules are set
-	if len(notification.Event) == 0 {
+	if len(notification.Regex) == 0 {
 		log.Error().Str("name", notification.Name).Msg("No rules configured. Skipping")
 		return false
 	}
@@ -70,7 +69,7 @@ func matchEvent(event events.Message, notification notification) bool {
 	// Convert the event to a flattend map
 	eventMap := structToFlatMap(event)
 
-	for eventKey, rule := range notification.Event {
+	for eventKey, regex := range notification.Regex {
 
 		// get the value of the event's eventKey
 		eventValue, keyExist := eventMap[eventKey]
@@ -82,20 +81,17 @@ func matchEvent(event events.Message, notification notification) bool {
 			return false
 		}
 
-		matched, err := regexp.MatchString(rule, eventValue)
-		if err != nil {
-			log.Error().Err(err).Msg("regex matching failed")
-		}
+		matched := regex.MatchString(eventValue)
 
 		// regex did not match
 		if !matched {
 			log.Debug().
-				Msgf("Rule \"%s: %s\" did not match", eventKey, rule)
+				Msgf("Rule \"%s: %s\" did not match", eventKey, notification.Event[eventKey])
 			return false
 		}
 
 		log.Debug().
-			Msgf("Rule \"%s: %s\" matched", eventKey, rule)
+			Msgf("Rule \"%s: %s\" matched", eventKey, notification.Event[eventKey])
 	}
 	log.Debug().Str("name", notification.Name).Msg("All rules matched. Triggering notification")
 	return true

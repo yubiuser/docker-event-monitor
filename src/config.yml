@@ -44,7 +44,7 @@ notifications:
   - name: "Alert me when unifi/.* based container dies with exitCode 1"
     enabled: true
     event:
-      "Action": [(die|destroy)"
+      "Action": "[(die|destroy)]"
       "Actor.Attributes.image": "unifi/.*"
       "Actor.Attributes.exitCode": "1"
     notify:
