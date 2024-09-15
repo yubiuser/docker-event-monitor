@@ -3,7 +3,7 @@ module docker-event-monitor
 go 1.23
 
 require (
-	github.com/docker/docker v27.0.0+incompatible
+	github.com/docker/docker v27.1.1+incompatible
 	github.com/rs/zerolog v1.33.0
 	golang.org/x/text v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
