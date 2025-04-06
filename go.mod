@@ -6,7 +6,7 @@ toolchain go1.24.1
 require (
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/rs/zerolog v1.34.0
-	golang.org/x/text v0.23.0
+	golang.org/x/text v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
