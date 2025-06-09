@@ -16,3 +16,13 @@ updates:
     time: "10:00"
   open-pull-requests-limit: 10
   target-branch: development
+- package-ecosystem: "docker"
+  directories:
+    - "/"
+    - "/.devcontainer/"
+  schedule:
+    interval: "weekly"
+    day: sunday
+    time: "10:00"
+  open-pull-requests-limit: 10
+  target-branch: development
