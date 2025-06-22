@@ -63,7 +63,7 @@ jobs:
         uses: docker/setup-qemu-action@v3.6.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
+        uses: docker/setup-buildx-action@v3.11.1
         with:
           buildkitd-flags: --debug
 
@@ -128,7 +128,7 @@ jobs:
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
+        uses: docker/setup-buildx-action@v3.11.1
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
