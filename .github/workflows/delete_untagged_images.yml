@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Delete all images from repository without tags
-        uses: Chizkiyahu/delete-untagged-ghcr-action@v6.0.0
+        uses: Chizkiyahu/delete-untagged-ghcr-action@v6.1.0
         with:
           token: ${{ secrets.PAT_TOKEN }}
           repository_owner: ${{ github.repository_owner }}
