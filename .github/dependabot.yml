@@ -8,6 +8,10 @@ updates:
     time: "10:00"
   open-pull-requests-limit: 10
   target-branch: development
+  groups:
+    github_action-dependencies:
+      patterns:
+        - "*"
 - package-ecosystem: gomod
   directory: "/"
   schedule:
@@ -16,6 +20,10 @@ updates:
     time: "10:00"
   open-pull-requests-limit: 10
   target-branch: development
+  groups:
+    go-dependencies:
+      patterns:
+        - "*"
 - package-ecosystem: "docker"
   directories:
     - "/"
@@ -26,3 +34,7 @@ updates:
     time: "10:00"
   open-pull-requests-limit: 10
   target-branch: development
+  groups:
+    docker-dependencies:
+      patterns:
+        - "*"
