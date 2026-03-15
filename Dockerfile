@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.24-alpine3.22 AS builder
+FROM golang:1.26-alpine3.23 AS builder
 ARG GIT_COMMIT
 ARG GIT_BRANCH
 ARG GIT_VERSION
