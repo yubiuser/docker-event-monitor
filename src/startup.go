@@ -64,6 +64,12 @@ func buildStartupMessage(timestamp time.Time) string {
 		startup_message_builder.WriteString("\nExcludeStrings: none")
 	}
 
+	if len(config.Options.CrashOnly) > 0 {
+		startup_message_builder.WriteString("\nCrashOnly: " + strings.Join(config.Options.CrashOnly, ", "))
+	} else {
+		startup_message_builder.WriteString("\nCrashOnly: none")
+	}
+
 	return startup_message_builder.String()
 }
 

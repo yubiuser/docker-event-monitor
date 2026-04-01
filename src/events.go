@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -134,6 +135,55 @@ func getActorName(event events.Message) string {
 	}
 	return ActorName
 
+}
+
+func isCrashOnlyEvent(event events.Message) bool {
+	// For containers matching crash_only patterns, suppress all events
+	// except "die" with a non-zero exit code that isn't a signal-based stop.
+	// Exit codes 137 (SIGKILL) and 143 (SIGTERM) are normal Docker stop signals.
+	if len(config.Options.CrashOnly) == 0 {
+		return false
+	}
+
+	name := getActorName(event)
+	image := getActorImage(event)
+
+	matched := false
+	for _, pattern := range config.Options.CrashOnly {
+		nameMatch, _ := regexp.MatchString(pattern, name)
+		imageMatch, _ := regexp.MatchString(pattern, image)
+		if nameMatch || imageMatch {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return false
+	}
+
+	// Container matches a crash_only pattern — only allow "die" with a real crash exit code
+	if event.Action != "die" {
+		log.Debug().
+			Str("ActorName", name).
+			Str("Action", string(event.Action)).
+			Msg("Suppressed (crash_only: not a die event)")
+		return true
+	}
+
+	exitCode := event.Actor.Attributes["exitCode"]
+	if exitCode == "0" || exitCode == "137" || exitCode == "143" {
+		log.Debug().
+			Str("ActorName", name).
+			Str("exitCode", exitCode).
+			Msg("Suppressed (crash_only: clean/signal exit)")
+		return true
+	}
+
+	log.Info().
+		Str("ActorName", name).
+		Str("exitCode", exitCode).
+		Msg("Crash detected (crash_only: non-zero exit)")
+	return false
 }
 
 func excludeEvent(event events.Message) bool {

@@ -34,10 +34,11 @@ type reporter struct {
 }
 
 type options struct {
-	FilterStrings  []string `yaml:"filter_strings,flow"`
-	ExcludeStrings []string `yaml:"exclude_strings,flow"`
-	LogLevel       string   `yaml:"log_level"`
-	ServerTag      string   `yaml:"server_tag"`
+	FilterStrings    []string `yaml:"filter_strings,flow"`
+	ExcludeStrings   []string `yaml:"exclude_strings,flow"`
+	CrashOnly        []string `yaml:"crash_only,flow"`
+	LogLevel         string   `yaml:"log_level"`
+	ServerTag        string   `yaml:"server_tag"`
 }
 
 type Config struct {

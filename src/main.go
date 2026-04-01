@@ -216,6 +216,10 @@ func main() {
 					break //breaks out of the select and waits for the next event to arrive
 				}
 			}
+			// Check if event is from a crash_only container
+			if isCrashOnlyEvent(event) {
+				break
+			}
 			processEvent(event)
 		}
 	}
