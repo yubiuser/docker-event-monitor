@@ -1,5 +1,7 @@
 package main
 
+import "regexp"
+
 type pushover struct {
 	Enabled  bool
 	APIToken string `yaml:"api_token"`
@@ -42,9 +44,10 @@ type options struct {
 }
 
 type Config struct {
-	Reporter        reporter
-	Options         options
-	EnabledReporter []string            `yaml:"-"`
-	Filter          map[string][]string `yaml:"-"`
-	Exclude         map[string][]string `yaml:"-"`
+	Reporter         reporter
+	Options          options
+	EnabledReporter  []string            `yaml:"-"`
+	Filter           map[string][]string `yaml:"-"`
+	Exclude          map[string][]string `yaml:"-"`
+	CrashOnlyRegexps []*regexp.Regexp    `yaml:"-"`
 }

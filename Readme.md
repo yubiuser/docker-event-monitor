@@ -118,7 +118,7 @@ Keys of nested elements are joind by dots. E.g. `Actor.Attributes.com.docker.com
 
 ### Crash-only monitoring
 
-For containers where you only want to be notified about real crashes (not routine restarts, updates, or stops), use the `crash_only` option. It takes a list of substrings matched against the container name and image:
+For containers where you only want to be notified about real crashes (not routine restarts, updates, or stops), use the `crash_only` option. It takes a list of [Go regular expressions](https://pkg.go.dev/regexp/syntax) matched against the container name and image:
 
 ```yaml
 options:
@@ -140,4 +140,4 @@ This is useful for development/staging containers that are frequently restarted 
 |---------|---------|
 | `my-test-app` | Any name containing `my-test-app` (substring), including `my-test-app-db-1` |
 | `^my-test-app$` | Only the exact name `my-test-app` |
-| `^my-(test\|beta)-app` | Names starting with `my-test-app` or `my-beta-app` (and their suffixes like `-db-1`) |
+| `^my-(test|beta)-app` | Names starting with `my-test-app` or `my-beta-app` (and their suffixes like `-db-1`) |
