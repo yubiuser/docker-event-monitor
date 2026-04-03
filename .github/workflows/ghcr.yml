@@ -27,7 +27,8 @@ jobs:
       GIT_DATE: ${{ env.GIT_DATE }}
     steps:
       # FIXME: can't use env object in reusable workflow inputs: https://github.com/orgs/community/discussions/26671
-      - run: echo "Exposing env vars for reusable workflow"
+      - name: Lowercase registry image name
+        run: echo "REGISTRY_IMAGE=${REGISTRY_IMAGE,,}" >> $GITHUB_ENV
 
       - name: Checkout Code
         uses: actions/checkout@v6.0.2
