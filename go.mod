@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/rs/zerolog v1.35.0
+	github.com/rs/zerolog v1.35.1
 	golang.org/x/text v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
 )
