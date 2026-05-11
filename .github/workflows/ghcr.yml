@@ -58,7 +58,6 @@ jobs:
     needs:
       - build-prepare
     with:
-      runner: auto
       distribute: true
       setup-qemu: true
       output: image
