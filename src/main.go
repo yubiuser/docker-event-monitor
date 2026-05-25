@@ -9,9 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 	"gopkg.in/yaml.v3"
 
 	"github.com/rs/zerolog"
@@ -184,27 +182,27 @@ func main() {
 	startup_message := buildStartupMessage(timestamp)
 	sendNotifications(timestamp, startup_message, "Starting docker event monitor", config.EnabledReporter)
 
-	filterArgs := filters.NewArgs()
+	filterArgs := make(client.Filters)
 	for key, values := range config.Filter {
 		for _, value := range values {
 			filterArgs.Add(key, value)
 		}
 	}
 
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create new docker client")
 	}
 	defer cli.Close()
 
 	// receives events from the channel
-	event_chan, errs := cli.Events(context.Background(), events.ListOptions{Filters: filterArgs})
+	EventResults := cli.Events(context.Background(), client.EventsListOptions{Filters: filterArgs})
 
 	for {
 		select {
-		case err := <-errs:
+		case err := <-EventResults.Err:
 			log.Fatal().Err(err).Msg("")
-		case event := <-event_chan:
+		case event := <-EventResults.Messages:
 			// if logging level is debug, log the event
 			log.Debug().
 				Interface("event", event).Msg("")
