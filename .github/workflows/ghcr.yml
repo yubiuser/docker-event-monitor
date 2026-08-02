@@ -50,7 +50,7 @@ jobs:
           echo "GIT_COMMIT=${GIT_COMMIT}" >> $GITHUB_ENV
           echo "GIT_DATE=${GIT_DATE}" >> $GITHUB_ENV
   build:
-    uses: docker/github-builder/.github/workflows/build.yml@v1.14.0
+    uses: docker/github-builder/.github/workflows/build.yml@v1.15.0
     permissions:
       contents: read
       packages: write # required to push to GHCR
