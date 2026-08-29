@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -142,6 +143,15 @@ func parseArgs() {
 		config.Exclude[key] = append(config.Exclude[key], val)
 	}
 
+	// Compile crash_only patterns
+	for _, pattern := range config.Options.CrashOnly {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			log.Fatal().Err(err).Msgf("Invalid crash_only pattern: %s", pattern)
+		}
+		config.CrashOnlyRegexps = append(config.CrashOnlyRegexps, re)
+	}
+
 	//Parse Enabled reportes
 
 	if config.Reporter.Gotify.Enabled {
@@ -215,6 +225,10 @@ func main() {
 				if excludeEvent(event) {
 					break //breaks out of the select and waits for the next event to arrive
 				}
+			}
+			// Check if event should be suppressed by crash_only filter
+			if shouldSuppressForCrashOnly(event) {
+				break
 			}
 			processEvent(event)
 		}
