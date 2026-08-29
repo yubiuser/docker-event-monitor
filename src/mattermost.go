@@ -26,7 +26,7 @@ func sendMattermost(message string, title string, errCh chan ReporterError) {
 	}
 
 	e := ReporterError{
-		Reporter: "Mattermost",
+		Reporter: "mattermost",
 	}
 
 	messageJSON, err := json.Marshal(m)

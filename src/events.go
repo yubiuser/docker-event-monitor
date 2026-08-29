@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,7 +11,93 @@ import (
 	"golang.org/x/text/language"
 )
 
-func processEvent(event events.Message) {
+func checkReporter(event events.Message) {
+
+	// check if notifications are configured and apply event checks
+	// if none are configured, process event right away
+	if len(config.Notifications) > 0 {
+
+		for _, notification := range config.Notifications {
+
+			// only process enabled notifications
+			if notification.Enabled {
+				if matchEvent(event, notification) {
+
+					// check which reporters should be used
+					// if none are configured, notification is send to all enabled reporters
+					if len(notification.Notify) > 0 {
+
+						// remove disabled reporters
+						for _, reporter := range notification.Notify {
+							if !slices.Contains(config.EnabledReporter, reporter) {
+								log.Error().Str("reporter", reporter).Msg("Reporter not enabled")
+								notification.Notify = removeStringFromSliceInsensitive(notification.Notify, reporter)
+							}
+						}
+
+						// check if there are reporters left after removing disabled ones
+						if len(notification.Notify) > 0 {
+							log.Debug().Str("rule", notification.Name).Interface("using reporters", notification.Notify).Send()
+							processEvent(event, notification.Notify)
+						} else {
+							log.Error().Str("rule", notification.Name).Msg("No enabled reporter for this rule found")
+						}
+
+					} else {
+						processEvent(event, config.EnabledReporter)
+					}
+				}
+			} else {
+				log.Debug().Msgf("Skipping disabled notification \"%s\"", notification.Name)
+			}
+		}
+
+	} else {
+		processEvent(event, config.EnabledReporter)
+	}
+}
+func matchEvent(event events.Message, notification notification) bool {
+
+	// only proceed when rules are set
+	if len(notification.Regex) == 0 {
+		log.Error().Str("name", notification.Name).Msg("No rules configured. Skipping")
+		return false
+	}
+
+	log.Debug().Str("name", notification.Name).Msg("Checking event for match")
+
+	// Convert the event to a flattend map
+	eventMap := structToFlatMap(event)
+
+	for eventKey, regex := range notification.Regex {
+
+		// get the value of the event's eventKey
+		eventValue, keyExist := eventMap[eventKey]
+
+		// Check if the key exists in the eventMap
+		if !keyExist {
+			log.Debug().
+				Msgf("Eventkey \"%s\" does not exist in event", eventKey)
+			return false
+		}
+
+		matched := regex.MatchString(eventValue)
+
+		// regex did not match
+		if !matched {
+			log.Debug().
+				Msgf("Rule \"%s: %s\" did not match", eventKey, notification.Event[eventKey])
+			return false
+		}
+
+		log.Debug().
+			Msgf("Rule \"%s: %s\" matched", eventKey, notification.Event[eventKey])
+	}
+	log.Debug().Str("name", notification.Name).Msg("All rules matched. Triggering notification")
+	return true
+}
+
+func processEvent(event events.Message, reporters []string) {
 	// the Docker Events endpoint will return a struct events.Message
 	// https://pkg.go.dev/github.com/docker/docker/api/types/events#Message
 
@@ -80,7 +166,7 @@ func processEvent(event events.Message) {
 
 	// send notifications to various reporters
 	// function will finish when all reporters finished
-	sendNotifications(timestamp, message, title, config.EnabledReporter)
+	sendNotifications(timestamp, message, title, reporters)
 
 }
 
@@ -134,95 +220,4 @@ func getActorName(event events.Message) string {
 	}
 	return ActorName
 
-}
-
-func excludeEvent(event events.Message) bool {
-	// Checks if any of the exclusion criteria matches the event
-
-	ActorID := getActorID(event)
-
-	// Convert the event (struct of type event.Message) to a flattend map
-	eventMap := structToFlatMap(event)
-
-	// Check for all exclude key -> value combinations if they match the event
-	for key, values := range config.Exclude {
-		eventValue, keyExist := eventMap[key]
-
-		// Check if the exclusion key exists in the eventMap
-		if !keyExist {
-			log.Debug().
-				Str("ActorID", ActorID).
-				Msgf("Exclusion key \"%s\" did not match", key)
-			return false
-		}
-
-		log.Debug().
-			Str("ActorID", ActorID).
-			Msgf("Exclusion key \"%s\" matched, checking values", key)
-
-		log.Debug().
-			Str("ActorID", ActorID).
-			Msgf("Event's value for key \"%s\" is \"%s\"", key, eventValue)
-
-		for _, value := range values {
-			// comparing the prefix to be able to filter actions like "exec_XXX: YYYY" which use a
-			// special, dynamic, syntax
-			// see https://github.com/moby/moby/blob/bf053be997f87af233919a76e6ecbd7d17390e62/api/types/events/events.go#L74-L81
-
-			if strings.HasPrefix(eventValue, value) {
-				log.Debug().
-					Str("ActorID", ActorID).
-					Msgf("Event excluded based on exclusion setting \"%s=%s\"", key, value)
-				return true
-			}
-		}
-		log.Debug().
-			Str("ActorID", ActorID).
-			Msgf("Exclusion key \"%s\" matched, but values did not match", key)
-	}
-
-	return false
-}
-
-// flatten a nested map, separating nested keys by dots
-func flattenMap(prefix string, m map[string]interface{}) map[string]string {
-	flatMap := make(map[string]string)
-	for k, v := range m {
-		newKey := k
-		// separate nested keys by dot
-		if prefix != "" {
-			newKey = prefix + "." + k
-		}
-		// if the value is a map/struct itself, transverse it recursivly
-		switch k {
-		case "Actor", "Attributes":
-			nestedMap := v.(map[string]interface{})
-			for nk, nv := range flattenMap(newKey, nestedMap) {
-				flatMap[nk] = nv
-			}
-		case "time", "timeNano":
-			flatMap[newKey] = string(v.(json.Number))
-		default:
-			flatMap[newKey] = v.(string)
-		}
-	}
-	return flatMap
-}
-
-// Convert struct to flat map by first converting it to a map (via JSON) and flatten it afterwards
-func structToFlatMap(s interface{}) map[string]string {
-	m := make(map[string]interface{})
-	b, err := json.Marshal(s)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Marshaling JSON failed")
-	}
-
-	// Using a custom decoder to set 'UseNumber' which will preserver a string representation of
-	// time and timeNano instead of converting it to float64
-	decoder := json.NewDecoder(strings.NewReader(string(b)))
-	decoder.UseNumber()
-	if err := decoder.Decode(&m); err != nil {
-		log.Fatal().Err(err).Msg("Unmarshaling JSON failed")
-	}
-	return flattenMap("", m)
 }

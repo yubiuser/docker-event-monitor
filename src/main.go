@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 	"time"
 
 	"github.com/docker/docker/api/types/events"
@@ -21,7 +21,7 @@ import (
 // hold config options and settings globally
 var config Config
 
-// should we only print version information and exit
+// should we only print version information and exit?
 var showVersion bool
 
 // config file path
@@ -53,7 +53,45 @@ func init() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	parseArgs()
+	parseReporter()
+	parseRegex()
+
+}
+
+func loadConfig() {
+	configFile, err := filepath.Abs(configFilePath)
+
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to set config file path")
+	}
+
+	buf, err := os.ReadFile(configFile)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to read config file")
+	}
+
+	err = yaml.Unmarshal(buf, &config)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to parse config file")
+	}
+}
+
+func parseReporter() {
+
+	//Parse Enabled reportes
+
+	if config.Reporter.Gotify.Enabled {
+		config.EnabledReporter = append(config.EnabledReporter, "gotify")
+	}
+	if config.Reporter.Mattermost.Enabled {
+		config.EnabledReporter = append(config.EnabledReporter, "mattermost")
+	}
+	if config.Reporter.Pushover.Enabled {
+		config.EnabledReporter = append(config.EnabledReporter, "pushover")
+	}
+	if config.Reporter.Mail.Enabled {
+		config.EnabledReporter = append(config.EnabledReporter, "mail")
+	}
 
 	if config.Reporter.Pushover.Enabled {
 		if len(config.Reporter.Pushover.APIToken) == 0 {
@@ -95,70 +133,32 @@ func init() {
 	}
 }
 
-func loadConfig() {
-	configFile, err := filepath.Abs(configFilePath)
+func parseRegex() {
 
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to set config file path")
-	}
+	// check any notification is configure at all
+	if len(config.Notifications) > 0 {
+		// for each notification
+		for i, notification := range config.Notifications {
 
-	buf, err := os.ReadFile(configFile)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to read config file")
-	}
-
-	err = yaml.Unmarshal(buf, &config)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to parse config file")
-	}
-}
-
-func parseArgs() {
-
-	// Parse (include) filters
-	config.Filter = make(map[string][]string)
-
-	for _, filter := range config.Options.FilterStrings {
-		pos := strings.Index(filter, "=")
-		if pos == -1 {
-			log.Fatal().Msg("each filter should be of the form key=value")
+			// only process enabled notifications
+			if notification.Enabled {
+				config.Notifications[i].Regex = make(map[string]regexp.Regexp)
+				// process every rule of the notification
+				for eventKey, rule := range notification.Event {
+					regex, err := regexp.Compile(rule)
+					if err != nil {
+						log.Fatal().Err(err).Msg("Failed to compile regex")
+					}
+					config.Notifications[i].Regex[eventKey] = *regex
+				}
+			} else {
+				log.Debug().Msgf("Not parsing regex of disabled notification \"%s\"", notification.Name)
+			}
 		}
-		key := filter[:pos]
-		val := filter[pos+1:]
-		config.Filter[key] = append(config.Filter[key], val)
-	}
 
-	// Parse exclude filters
-	config.Exclude = make(map[string][]string)
-
-	for _, exclude := range config.Options.ExcludeStrings {
-		pos := strings.Index(exclude, "=")
-		if pos == -1 {
-			log.Fatal().Msg("each filter should be of the form key=value")
-		}
-		//trim whitespaces
-		key := strings.TrimSpace(exclude[:pos])
-		val := exclude[pos+1:]
-		config.Exclude[key] = append(config.Exclude[key], val)
-	}
-
-	//Parse Enabled reportes
-
-	if config.Reporter.Gotify.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Gotify")
-	}
-	if config.Reporter.Mattermost.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Mattermost")
-	}
-	if config.Reporter.Pushover.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Pushover")
-	}
-	if config.Reporter.Mail.Enabled {
-		config.EnabledReporter = append(config.EnabledReporter, "Mail")
 	}
 
 }
-
 func configureLogger() {
 
 	// Configure time/timestamp format
@@ -180,12 +180,12 @@ func main() {
 	// log all supplied arguments
 	logArguments()
 
-	timestamp := time.Now()
-	startup_message := buildStartupMessage(timestamp)
-	sendNotifications(timestamp, startup_message, "Starting docker event monitor", config.EnabledReporter)
+	startup_time := time.Now()
+	startup_message := buildStartupMessage(startup_time)
+	sendNotifications(startup_time, startup_message, "Starting docker event monitor", config.EnabledReporter)
 
 	filterArgs := filters.NewArgs()
-	for key, values := range config.Filter {
+	for key, values := range config.Options.Filter {
 		for _, value := range values {
 			filterArgs.Add(key, value)
 		}
@@ -208,15 +208,7 @@ func main() {
 			// if logging level is debug, log the event
 			log.Debug().
 				Interface("event", event).Msg("")
-
-			// Check if event should be exlcuded from reporting
-			if len(config.Exclude) > 0 {
-				log.Debug().Msg("Performing check for event exclusion")
-				if excludeEvent(event) {
-					break //breaks out of the select and waits for the next event to arrive
-				}
-			}
-			processEvent(event)
+			checkReporter(event)
 		}
 	}
 }

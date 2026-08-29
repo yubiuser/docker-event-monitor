@@ -21,7 +21,7 @@ func sendGotify(message string, title string, errCh chan ReporterError) {
 	}
 
 	e := ReporterError{
-		Reporter: "Gotify",
+		Reporter: "gotify",
 	}
 
 	messageJSON, err := json.Marshal(m)

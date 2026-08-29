@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
@@ -52,16 +51,10 @@ func buildStartupMessage(timestamp time.Time) string {
 		startup_message_builder.WriteString("\nServerTag: none")
 	}
 
-	if len(config.Options.FilterStrings) > 0 {
-		startup_message_builder.WriteString("\nFilterStrings: " + strings.Join(config.Options.FilterStrings, " "))
+	if len(config.Options.Filter) > 0 {
+		startup_message_builder.WriteString("\nGlobal filter: " + mapToString(config.Options.Filter))
 	} else {
-		startup_message_builder.WriteString("\nFilterStrings: none")
-	}
-
-	if len(config.Options.ExcludeStrings) > 0 {
-		startup_message_builder.WriteString("\nExcludeStrings: " + strings.Join(config.Options.ExcludeStrings, " "))
-	} else {
-		startup_message_builder.WriteString("\nExcludeStrings: none")
+		startup_message_builder.WriteString("\nGlobal filter: none")
 	}
 
 	return startup_message_builder.String()
@@ -71,21 +64,14 @@ func logArguments() {
 	log.Info().
 		Interface("options", config.Options).
 		Interface("reporter", config.Reporter).
+		Interface("notifications", config.Notifications).
 		Dict("version", zerolog.Dict().
 			Str("Version", version).
 			Str("Branch", branch).
 			Str("Commit", commit).
-			Time("Compile_date", stringToUnix(date)).
-			Time("Git_date", stringToUnix(gitdate)),
+			Time("Compile_date", stringToUnixTime(date)).
+			Time("Git_date", stringToUnixTime(gitdate)),
 		).
 		Msg("Docker event monitor started")
 }
 
-func stringToUnix(str string) time.Time {
-	i, err := strconv.ParseInt(str, 10, 64)
-	if err != nil {
-		log.Fatal().Err(err).Msg("String to timestamp conversion failed")
-	}
-	tm := time.Unix(i, 0)
-	return tm
-}

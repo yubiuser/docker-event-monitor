@@ -1,7 +1,10 @@
 ---
 options:
-  filter_strings: ["type=container"]
-  exclude_strings: ["Action=exec_start", "Action=exec_die", "Action=exec_create"]
+  filter:
+    type: ["container"]
+  # container: ["some_container_name"]
+  # image: ["some_image_name"]
+  # event: ["start", "stop", "die", "destroy"]
   log_level: debug
   server_tag: My Server
 
@@ -28,3 +31,31 @@ reporter:
     channel: Docker Event Channel
     user: Docker Event Bot
 
+notifications:
+  - name: "Alert me when watchtower/.* based container restarts"
+    enabled: false
+    event:
+      "Action": "(start|stop)"
+      "Actor.Attributes.image": "watchtower/.*"
+    notify:
+      - pushover
+      - mail
+      - gotify
+  - name: "Alert me when unifi/.* based container dies with exitCode 1"
+    enabled: true
+    event:
+      "Action": "[(die|destroy)]"
+      "Actor.Attributes.image": "unifi/.*"
+      "Actor.Attributes.exitCode": "1"
+    notify:
+      - pushover
+      - mattermost
+
+  - name: "Alert only on gotify when container dies with exitCode 0"
+    enabled: true
+    event:
+      "Action": "(die|destroy)"
+      "Actor.Attributes.image": "pihole/.*"
+      "Actor.Attributes.exitCode": "0"
+    notify:
+      - gotify
