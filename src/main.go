@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"gopkg.in/yaml.v3"
@@ -198,7 +198,7 @@ func main() {
 	defer cli.Close()
 
 	// receives events from the channel
-	event_chan, errs := cli.Events(context.Background(), types.EventsOptions{Filters: filterArgs})
+	event_chan, errs := cli.Events(context.Background(), events.ListOptions{Filters: filterArgs})
 
 	for {
 		select {

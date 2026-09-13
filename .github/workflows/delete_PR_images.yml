@@ -1,4 +1,4 @@
-name: Remove obsolet PR images from registry
+name: Remove obsolete PR images from registry
 
 on:
   pull_request:
