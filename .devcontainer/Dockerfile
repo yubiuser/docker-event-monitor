@@ -1,8 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG alpine_version=3.20
-ARG golang_version=1.23
-
-FROM golang:${golang_version}-alpine${alpine_version}
+FROM golang:1.26-alpine3.23
 RUN apk add --no-cache \
                 git \
                 make \
