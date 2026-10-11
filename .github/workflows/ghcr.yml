@@ -12,29 +12,25 @@ on:
 env:
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
 
+permissions:
+  contents: read
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - platform: linux/amd64
-          - platform: linux/arm64
-          - platform: linux/arm/v6
-          - platform: linux/arm/v7
-          - platform: linux/386
+  build-prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
+      GIT_TAG: ${{ env.GIT_TAG }}
+      GIT_BRANCH: ${{ env.GIT_BRANCH }}
+      GIT_VERSION: ${{ env.GIT_VERSION }}
+      GIT_COMMIT: ${{ env.GIT_COMMIT }}
+      GIT_DATE: ${{ env.GIT_DATE }}
     steps:
-      - name: Prepare name for digest up/download
-        run: |
-          platform=${{ matrix.platform }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+      # FIXME: can't use env object in reusable workflow inputs: https://github.com/orgs/community/discussions/26671
+      - run: echo "Exposing env vars for reusable workflow"
 
       - name: Checkout Code
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
@@ -53,104 +49,41 @@ jobs:
           echo "GIT_VERSION=${GIT_VERSION}" >> $GITHUB_ENV
           echo "GIT_COMMIT=${GIT_COMMIT}" >> $GITHUB_ENV
           echo "GIT_DATE=${GIT_DATE}" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.6.1
-        with:
-          buildkitd-flags: --debug
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.REGISTRY_IMAGE }}
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6.7.0
-        id: build
-        with:
-          context: .
-          file: ./Dockerfile
-          build-args: |
-            GIT_TAG=${{ env.GIT_TAG }}
-            GIT_BRANCH=${{ env.GIT_BRANCH }}
-            GIT_VERSION=${{ env.GIT_VERSION }}
-            GIT_COMMIT=${{ env.GIT_COMMIT }}
-            GIT_DATE=${{ env.GIT_DATE }}
-          platforms: ${{ matrix.platform }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: false
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'release' }}
-      - name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-      - name: Upload digest
-        uses: actions/upload-artifact@v4.4.0
-        with:
-          name: digests-${{ env.PLATFORM_PAIR }}
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge:
-    runs-on: ubuntu-latest
-    needs:
-      - build
-    if: |
-      github.actor != 'dependabot[bot]'
-      && ( github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'release' )
+  build:
+    uses: docker/github-builder/.github/workflows/build.yml@v1.17.0
     permissions:
       contents: read
-      packages: write
-    steps:
-      - name: Download digests
-        uses: actions/download-artifact@v4.1.8
-        with:
-          path: /tmp/digests
-          pattern: digests-*
-          merge-multiple: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.6.1
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.REGISTRY_IMAGE }}
-          flavor: latest=${{ startsWith(github.ref, 'refs/tags/') }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=ref,event=pr
-            type=ref,event=branch
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3.3.0
-        with:
-          registry: ghcr.io
+      packages: write # required to push to GHCR
+      id-token: write # for signing attestation(s) with GitHub OIDC Token
+    needs:
+      - build-prepare
+    with:
+      distribute: true
+      setup-qemu: true
+      output: image
+      cache: true
+      cache-scope: build
+      push: ${{ github.actor != 'dependabot[bot]' && ( github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'release' ) }}
+      meta-images: ${{ needs.build-prepare.outputs.REGISTRY_IMAGE }}
+      meta-flavor: latest=${{ startsWith(github.ref, 'refs/tags/') }}
+      meta-tags: |
+        type=semver,pattern={{version}}
+        type=semver,pattern={{major}}.{{minor}}
+        type=semver,pattern={{major}}
+        type=sha,enable=${{ github.event_name == 'workflow_dispatch' }}
+        type=ref,event=pr
+        type=ref,event=branch
+      platforms: linux/amd64,linux/arm64, linux/arm/v6, linux/arm/v7, linux/386
+      # FIXME: GHCR does not support the referrers API and spams the registry with sha-tagged images when cosigned: https://github.com/docker/github-builder/issues/109
+      sign: false
+      build-args: |
+        GIT_TAG=${{ needs.build-prepare.outputs.GIT_TAG }}
+        GIT_BRANCH=${{ needs.build-prepare.outputs.GIT_BRANCH }}
+        GIT_VERSION=${{ needs.build-prepare.outputs.GIT_VERSION }}
+        GIT_COMMIT=${{ needs.build-prepare.outputs.GIT_COMMIT }}
+        GIT_DATE=${{ needs.build-prepare.outputs.GIT_DATE }}
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create manifest list and push
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
-      - name: Inspect image
-        run: |
-          docker buildx imagetools inspect --raw ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
-
-
