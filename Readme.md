@@ -71,6 +71,7 @@ Currently the following options can be set via `config.yml`
 options:
   filter_strings: ["type=container"]
   exclude_strings: ["Action=exec_start", "Action=exec_die", "Action=exec_create"]
+  crash_only: ["^my-(test|staging)-app"]
   log_level: debug
   server_tag: My Server
 
@@ -114,3 +115,29 @@ The syntax for exclusion is also `key=value`.  But as the exclusion happens on t
 ```
 
 Keys of nested elements are joind by dots. E.g. `Actor.Attributes.com.docker.compose.project` or `Actor.Attributes.image`.
+
+### Crash-only monitoring
+
+For containers where you only want to be notified about real crashes (not routine restarts, updates, or stops), use the `crash_only` option. It takes a list of [Go regular expressions](https://pkg.go.dev/regexp/syntax) matched against the container name and image:
+
+```yaml
+options:
+  crash_only: ["^my-(test|beta)-app"]
+```
+
+Containers matching any of these patterns will only generate notifications for `die` events with a non-zero exit code that isn't a signal-based stop. Specifically:
+
+| Event | Exit code | Notified? |
+|-------|-----------|-----------|
+| `start`, `stop`, `kill`, `create` | — | No |
+| `die` | 0 (clean exit) | No |
+| `die` | 137 (SIGKILL) / 143 (SIGTERM) | No |
+| `die` | Any other non-zero | **Yes** (crash) |
+
+This is useful for development/staging containers that are frequently restarted or redeployed (e.g. by Watchtower) and would otherwise flood notifications. Patterns are matched as [Go regular expressions](https://pkg.go.dev/regexp/syntax) against both the container name and the image name. Examples:
+
+| Pattern | Matches |
+|---------|---------|
+| `my-test-app` | Any name containing `my-test-app` (substring), including `my-test-app-db-1` |
+| `^my-test-app$` | Only the exact name `my-test-app` |
+| `^my-(test|beta)-app` | Names starting with `my-test-app` or `my-beta-app` (and their suffixes like `-db-1`) |

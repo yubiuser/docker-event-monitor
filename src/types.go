@@ -1,5 +1,7 @@
 package main
 
+import "regexp"
+
 type pushover struct {
 	Enabled  bool
 	APIToken string `yaml:"api_token"`
@@ -34,16 +36,18 @@ type reporter struct {
 }
 
 type options struct {
-	FilterStrings  []string `yaml:"filter_strings,flow"`
-	ExcludeStrings []string `yaml:"exclude_strings,flow"`
-	LogLevel       string   `yaml:"log_level"`
-	ServerTag      string   `yaml:"server_tag"`
+	FilterStrings    []string `yaml:"filter_strings,flow"`
+	ExcludeStrings   []string `yaml:"exclude_strings,flow"`
+	CrashOnly        []string `yaml:"crash_only,flow"`
+	LogLevel         string   `yaml:"log_level"`
+	ServerTag        string   `yaml:"server_tag"`
 }
 
 type Config struct {
-	Reporter        reporter
-	Options         options
-	EnabledReporter []string            `yaml:"-"`
-	Filter          map[string][]string `yaml:"-"`
-	Exclude         map[string][]string `yaml:"-"`
+	Reporter         reporter
+	Options          options
+	EnabledReporter  []string            `yaml:"-"`
+	Filter           map[string][]string `yaml:"-"`
+	Exclude          map[string][]string `yaml:"-"`
+	CrashOnlyRegexps []*regexp.Regexp    `yaml:"-"`
 }
