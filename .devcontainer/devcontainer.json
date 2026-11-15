@@ -19,7 +19,7 @@
     "GIT_EDITOR": "nano"
   },
   "mounts": [
-    "type=bind,source=/home/${localEnv:USER}/.ssh,target=/root/.ssh,readonly"
+    "type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly"
   ]
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
